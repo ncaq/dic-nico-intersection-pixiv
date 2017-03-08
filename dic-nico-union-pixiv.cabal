@@ -1,0 +1,30 @@
+name:                dic-nico-union-pixiv
+version:             0.1.0.0
+homepage:            https://github.com/ncaq/dic-nico-union-pixiv
+license:             BSD3
+license-file:        LICENSE
+author:              ncaq
+maintainer:          ncaq@ncaq.net
+copyright:           2017 ncaq
+category:            Language
+build-type:          Simple
+cabal-version:       >=1.10
+extra-source-files:  README.md
+
+source-repository head
+  type:     git
+  location: https://github.com/ncaq/dic-nico-union-pixiv.git
+
+executable dic-nico-union-pixiv
+  hs-source-dirs:      src
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  default-extensions:  OverloadedStrings
+                     , QuasiQuotes
+  build-depends:       base >= 4.7 && < 5
+                     , container
+                     , http-conduit
+                     , process
+                     , text
+                     , text-icu
+
