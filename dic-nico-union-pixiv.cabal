@@ -22,9 +22,9 @@ executable dic-nico-union-pixiv
   default-extensions:  OverloadedStrings
                      , QuasiQuotes
   build-depends:       base >= 4.7 && < 5
-                     , container
+                     , containers
                      , http-conduit
                      , process
                      , text
                      , text-icu
-
+                     , zip-archive
