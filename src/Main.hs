@@ -14,7 +14,7 @@ import           Network.HTTP.Types
 
 main :: IO ()
 main = do
-    Archive { zEntries = [ entryAtok@Entry {eRelativePath = "nicoime_atok.txt"}, _ ] } <-
+    Archive { zEntries = [ entryMsime@Entry {eRelativePath = "nicoime_msime.txt"}, _ ] } <-
         toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
     l <- filterM (\(_, w) -> (\r -> getResponseStatusCode r == 200) <$>
                      httpNoBody
@@ -22,5 +22,5 @@ main = do
                       (B.unpack ("http://dic.pixiv.net/a/" <> urlEncode False (T.encodeUtf8 w))))) .
          map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
          map (T.split ('\t' ==)) . drop 8 . T.lines . T.decodeUtf16LE . BL8.toStrict $
-         fromEntry entryAtok
+         fromEntry entryMsime
     mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有一般") l
