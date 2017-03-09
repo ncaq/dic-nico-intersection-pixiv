@@ -23,4 +23,4 @@ main = do
          map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
          map (T.split ('\t' ==)) . drop 8 . T.lines . T.decodeUtf16LE . BL8.toStrict $
          fromEntry entryMsime
-    mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有一般") l
+    mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有名詞") l
