@@ -14,7 +14,7 @@ import           Network.HTTP.Types
 
 main :: IO ()
 main = do
-    Archive { zEntries = [ entryMsime@Entry {eRelativePath = "nicoime_msime.txt"}, _ ] } <-
+    Archive { zEntries = [ _, entryMsime@Entry {eRelativePath = "nicoime_msime.txt"} ] } <-
         toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
     l <- filterM (\(_, w) -> (\r -> getResponseStatusCode r == 200) <$>
                      httpNoBody
