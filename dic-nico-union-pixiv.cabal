@@ -1,6 +1,6 @@
-name:                dic-nico-union-pixiv
+name:                dic-nico-intersection-pixiv
 version:             0.1.0.0
-homepage:            https://github.com/ncaq/dic-nico-union-pixiv
+homepage:            https://github.com/ncaq/dic-nico-intersection-pixiv
 license:             BSD3
 license-file:        LICENSE
 author:              ncaq
@@ -13,9 +13,9 @@ extra-source-files:  README.md
 
 source-repository head
   type:     git
-  location: https://github.com/ncaq/dic-nico-union-pixiv.git
+  location: https://github.com/ncaq/dic-nico-intersection-pixiv.git
 
-executable dic-nico-union-pixiv
+executable dic-nico-intersection-pixiv
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010

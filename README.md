@@ -1,4 +1,4 @@
-# dic-nico-union-pixiv
+# dic-nico-intersection-pixiv
 
 ニコニコ大百科とピクシブ百科事典の双方にある単語の辞書です.
 読みがなはニコニコ大百科に準拠しています.
