@@ -1,27 +1,52 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
 module Main where
 
 import           Codec.Archive.Zip
 import           Control.Monad
-import qualified Data.ByteString.Char8      as B
-import qualified Data.ByteString.Lazy.Char8 as BL8
+import qualified Data.ByteString.Lazy as BL
+import           Data.Functor
+import           Data.Maybe
 import           Data.Monoid
-import qualified Data.Text                  as T
-import qualified Data.Text.Encoding         as T
-import           Data.Text.ICU
-import qualified Data.Text.IO               as T
+import qualified Data.Set             as S
+import qualified Data.Text            as T
+import qualified Data.Text.Encoding   as T
+import qualified Data.Text.IO         as T
+import qualified Data.Text.Lazy       as TL
+import           Data.Text.Normalize
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
+import           System.Directory
+import           Text.XML
+import           Text.XML.Cursor
+import           Text.XML.Scraping
+import           Text.XML.Selector.TH
 
 main :: IO ()
 main = do
-    Archive { zEntries = [ _, entryMsime@Entry {eRelativePath = "nicoime_msime.txt"} ] } <-
-        toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
-    l <- filterM (\(_, w) -> (\r -> getResponseStatusCode r == 200) <$>
-                     httpNoBody
-                     (parseRequest_
-                      (B.unpack ("http://dic.pixiv.net/a/" <> urlEncode False (T.encodeUtf8 w))))) .
-         filter (\(y, w) -> 3 <= T.length y && T.length y <= 15 && 2 <= T.length w && T.length w <= 20) .
-         map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
-         map (T.split ('\t' ==)) . drop 8 . T.lines . T.decodeUtf16LE . BL8.toStrict $
-         fromEntry entryMsime
-    mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有名詞") l
+    dicNico <- getDicNico
+    dicPixiv <- getDicPixiv
+    mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有名詞") $
+        S.filter (\(_, w) -> S.member w dicPixiv) dicNico
+
+getDicNico :: IO (S.Set (T.Text, T.Text))
+getDicNico = do
+    existNicoime <- doesFileExist "nicoime.zip"
+    when (not existNicoime) $
+        httpLbs "http://tkido.com/data/nicoime.zip" >>= BL.writeFile "nicoime.zip" . getResponseBody
+    Archive { zEntries = [ _, msimeEntry@Entry {eRelativePath = "nicoime_msime.txt"} ] } <-
+        toArchive <$> BL.readFile "nicoime.zip"
+    return . S.map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
+        S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . T.decodeUtf16LE . BL.toStrict $
+        fromEntry msimeEntry
+
+getDicPixiv :: IO (S.Set T.Text)
+getDicPixiv = do
+    sitemap <- fromDocument . parseLBS_ def . getResponseBody <$>
+        httpLbs "https://dic.pixiv.net/sitemap/"
+    sitemaps <- mapM (\loc -> fromDocument . parseLBS_ def . getResponseBody <$>
+                         httpLbs (parseRequest_ (TL.unpack (innerText loc)))) $
+        queryT [jq|loc|] sitemap
+    return $ S.fromList $ map (normalize NFKC . T.decodeUtf8 . urlDecode False . T.encodeUtf8) $
+        mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
+        concat $ map (map (TL.toStrict . innerText) . queryT [jq|loc|]) sitemaps

@@ -6,15 +6,18 @@ maintainer: ncaq@ncaq.net
 copyright: © ncaq
 license: PublicDomain
 github: ncaq/dic-nico-intersection-pixiv.git
-default-extensions:
-- OverloadedStrings
 dependencies:
 - base >=4.7 && <5
 - bytestring
+- containers
+- directory
+- dom-selector
+- html-conduit
 - http-conduit
 - http-types
 - text
-- text-icu
+- unicode-transforms
+- xml-conduit
 - zip-archive
 executables:
   dic-nico-intersection-pixiv:
