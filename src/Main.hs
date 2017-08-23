@@ -20,7 +20,7 @@ main = do
                      httpNoBody
                      (parseRequest_
                       (B.unpack ("http://dic.pixiv.net/a/" <> urlEncode False (T.encodeUtf8 w))))) .
-         filter (\(y, w) -> 2 < T.length y && T.length y <= 10 && 1 < T.length w && T.length w <= 8) .
+         filter (\(y, w) -> 3 <= T.length y && T.length y <= 15 && 2 <= T.length w && T.length w <= 20) .
          map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
          map (T.split ('\t' ==)) . drop 8 . T.lines . T.decodeUtf16LE . BL8.toStrict $
          fromEntry entryMsime
