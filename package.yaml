@@ -5,7 +5,7 @@ author: ncaq
 maintainer: ncaq@ncaq.net
 copyright: © ncaq
 license: PublicDomain
-github: ncaq/dic-nico-intersection-pixiv.git
+github: ncaq/dic-nico-intersection-pixiv
 dependencies:
 - base >=4.7 && <5
 - bytestring
