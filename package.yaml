@@ -10,9 +10,7 @@ dependencies:
 - base >=4.7 && <5
 - bytestring
 - containers
-- directory
 - dom-selector
-- html-conduit
 - http-conduit
 - http-types
 - text
