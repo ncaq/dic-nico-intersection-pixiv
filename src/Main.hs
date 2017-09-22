@@ -31,11 +31,8 @@ main = do
 
 getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
-    existNicoime <- doesFileExist "nicoime.zip"
-    when (not existNicoime) $
-        httpLbs "http://tkido.com/data/nicoime.zip" >>= BL.writeFile "nicoime.zip" . getResponseBody
-    Archive { zEntries = [ _, msimeEntry@Entry {eRelativePath = "nicoime_msime.txt"} ] } <-
-        toArchive <$> BL.readFile "nicoime.zip"
+    Archive { zEntries = [ _, msimeEntry@Entry { eRelativePath = "nicoime_msime.txt" } ] } <-
+        toArchive . getResponseBody <$> httpLbs "http://tkido.com/data/nicoime.zip"
     return . S.map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
         S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . T.decodeUtf16LE . BL.toStrict $
         fromEntry msimeEntry
