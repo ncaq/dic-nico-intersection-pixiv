@@ -3,9 +3,7 @@
 module Main where
 
 import           Codec.Archive.Zip
-import           Control.Monad
 import qualified Data.ByteString.Lazy as BL
-import           Data.Functor
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set             as S
@@ -16,7 +14,6 @@ import qualified Data.Text.Lazy       as TL
 import           Data.Text.Normalize
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           System.Directory
 import           Text.XML
 import           Text.XML.Cursor
 import           Text.XML.Scraping
@@ -46,4 +43,4 @@ getDicPixiv = do
         queryT [jq|loc|] sitemap
     return $ S.fromList $ map (normalize NFKC . T.decodeUtf8 . urlDecode False . T.encodeUtf8) $
         mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
-        concat $ map (map (TL.toStrict . innerText) . queryT [jq|loc|]) sitemaps
+        concatMap (map (TL.toStrict . innerText) . queryT [jq|loc|]) sitemaps
