@@ -19,3 +19,4 @@
 
 * [軽量なネット用語辞書が欲しかったので,ニコニコ大百科とピクシブ百科事典の共通部分の辞書であるdic-nico-intersection-pixivを作りました - ncaq](https://www.ncaq.net/2017/03/10/)
 * [dic-nico-intersection-pixivをpixivのサイトマップを使って生成するように変更しました - ncaq](https://www.ncaq.net/2017/08/23/)
+* [dic-nico-intersection-pixivの直リンクを見て意味わからないと言われてしまったのでファイルにコメントを追加しました - ncaq](https://www.ncaq.net/2017/11/09/16/26/13/)
