@@ -12,6 +12,8 @@ import qualified Data.Text.Encoding   as T
 import qualified Data.Text.IO         as T
 import qualified Data.Text.Lazy       as TL
 import           Data.Text.Normalize
+import           Data.Time.Format
+import           Data.Time.LocalTime
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
 import           Text.XML
@@ -21,10 +23,27 @@ import           Text.XML.Selector.TH
 
 main :: IO ()
 main = do
+    dicInfo <- getDicInfo
     dicNico <- getDicNico
     dicPixiv <- getDicPixiv
+
+    T.putStrLn dicInfo
     mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有名詞") $
         S.filter (\(_, w) -> S.member w dicPixiv) dicNico
+
+getDicInfo :: IO T.Text
+getDicInfo = do
+    time <- formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Z" <$> getZonedTime
+    return $ T.unlines
+        [ "#name: dic-nico-intersection-pixiv"
+        , "#description: ニコニコ大百科とピクシブ百科事典の共通部分の辞書"
+        , "#github: https://github.com/ncaq/dic-nico-intersection-pixiv"
+        , "#createdAt: " <> T.pack time
+        , "#copying:"
+        , "#nicovideo: http://dic.nicovideo.jp/"
+        , "#nicoime: http://tkido.com/blog/1019.html"
+        , "#pixiv: https://dic.pixiv.net/"
+        ]
 
 getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do

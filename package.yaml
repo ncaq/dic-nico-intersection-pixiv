@@ -14,6 +14,7 @@ dependencies:
 - http-conduit
 - http-types
 - text
+- time
 - unicode-transforms
 - xml-conduit
 - zip-archive
