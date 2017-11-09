@@ -1,6 +1,6 @@
 # dic-nico-intersection-pixiv
 
-ニコニコ大百科とピクシブ百科事典の積集合の辞書
+ニコニコ大百科とピクシブ百科事典の共通部分の辞書
 
 # ダウンロード
 
@@ -17,5 +17,5 @@
 
 # ブログ記事
 
-* [軽量なネット用語辞書が欲しかったので,ニコニコ大百科とピクシブ百科事典の積集合の辞書を作りました - ncaq](https://www.ncaq.net/2017/03/10/)
+* [軽量なネット用語辞書が欲しかったので,ニコニコ大百科とピクシブ百科事典の共通部分の辞書であるdic-nico-intersection-pixivを作りました - ncaq](https://www.ncaq.net/2017/03/10/)
 * [dic-nico-intersection-pixivをpixivのサイトマップを使って生成するように変更しました - ncaq](https://www.ncaq.net/2017/08/23/)
