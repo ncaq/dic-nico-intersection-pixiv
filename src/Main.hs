@@ -47,7 +47,7 @@ getDicInfo = do
 getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
     Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
-        toArchive . getResponseBody <$> httpLbs "http://tkido.com/data/nicoime.zip"
+        toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
     return . S.map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
         S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
         fromEntry msimeEntry
@@ -55,10 +55,10 @@ getDicNico = do
 getDicPixiv :: IO (S.Set T.Text)
 getDicPixiv = do
     sitemap <- fromDocument . parseLBS_ def . getResponseBody <$>
-        httpLbs "https://dic.pixiv.net/sitemap/"
+        httpLBS "https://dic.pixiv.net/sitemap/"
     sitemaps <- mapM (\loc ->
                           fromDocument . parseLBS_ def . getResponseBody <$>
-                          httpLbs (parseRequest_ (toString (innerText loc)))) $
+                          httpLBS (parseRequest_ (toString (innerText loc)))) $
         queryT [jq|loc|] sitemap
     return $ S.fromList $
         map (normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
