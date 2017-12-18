@@ -47,7 +47,7 @@ getDicInfo = do
 
 getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
-    Archive { zEntries = [ _, msimeEntry@Entry { eRelativePath = "nicoime_msime.txt" } ] } <-
+    Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
         toArchive . getResponseBody <$> httpLbs "http://tkido.com/data/nicoime.zip"
     return . S.map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
         S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . T.decodeUtf16LE . BL.toStrict $
