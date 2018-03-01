@@ -1,5 +1,4 @@
 flags: {}
 extra-deps:
 - dom-selector-0.2.0.1
-- string-transform-0.1.0
-resolver: lts-9.20
+resolver: lts-10.7
