@@ -48,7 +48,7 @@ getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
     Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
         toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
-    return . S.map (\[y, w, _] -> (normalize NFKC y, normalize NFKC w)) .
+    return . S.map (\[y, w, _] -> (normalize NFKC y, replaceSymbol $ normalize NFKC w)) .
         S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
         fromEntry msimeEntry
 
@@ -61,6 +61,9 @@ getDicPixiv = do
                           httpLBS (parseRequest_ (toString (innerText loc)))) $
         queryT [jq|loc|] sitemap
     return $ S.fromList $
-        map (normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
+        map (replaceSymbol . normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
         mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
         concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
+
+replaceSymbol :: T.Text -> T.Text
+replaceSymbol = T.replace "･･･" "…" . T.replace "・" "･"
