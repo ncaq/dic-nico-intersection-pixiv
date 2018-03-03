@@ -66,7 +66,7 @@ getDicPixiv = do
         concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
 
 replaceSymbol :: T.Text -> T.Text
-replaceSymbol = T.replace "･･･" "…" . T.replace "・" "･"
+replaceSymbol = T.replace "···" "…" . T.replace "・" "·"
 
 -- | 読みで遊んでいたり曖昧さ回避の結果など辞書に適さない単語を排除する
 dictionaryWord :: T.Text -> T.Text -> Bool
