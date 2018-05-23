@@ -72,6 +72,6 @@ replaceSymbol = T.replace "···" "…"
 dictionaryWord :: T.Text -> T.Text -> Bool
 dictionaryWord y w
     = T.length y < 20 &&             -- 読みが異様に長くない
-      T.length w < T.length y * 3 && -- 単語が読みに比べて異様に異様に長くない
+      T.length w < T.length y * 2 && -- 単語が読みに比べて異様に異様に長くない
       T.length y < T.length w * 4 && -- 読みが単語に比べて異様に長くない
       T.all ('(' /=) w               -- 括弧を含まない
