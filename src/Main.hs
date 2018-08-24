@@ -15,7 +15,7 @@ import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Text.XML
+import           Text.HTML.DOM
 import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
@@ -26,9 +26,12 @@ main = do
   dicNico <- getDicNico
   dicPixiv <- getDicPixiv
 
+  excludeWords <- getSpecialYomiViaNicoVideo
+
   T.putStrLn dicInfo
-  mapM_ (\(y, w) -> T.putStrLn $ y <> "\t" <> w <> "\t" <> "固有名詞") $
-    S.filter (\(y, w) -> dictionaryWord y w && S.member w dicPixiv) dicNico
+  mapM_ (\(yomi, word) -> T.putStrLn $ yomi <> "\t" <> word <> "\t" <> "固有名詞") $
+    S.filter
+    (\(yomi, word) -> dictionaryWord excludeWords yomi word && S.member word dicPixiv) dicNico
 
 getDicInfo :: IO T.Text
 getDicInfo = do
@@ -48,16 +51,16 @@ getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
   Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
     toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
-  return . S.map (\[y, w, _] -> (normalize NFKC y, replaceSymbol $ normalize NFKC w)) .
+  return . S.map (\[yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)) .
     S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
     fromEntry msimeEntry
 
 getDicPixiv :: IO (S.Set T.Text)
 getDicPixiv = do
-  sitemap <- fromDocument . parseLBS_ def . getResponseBody <$>
+  sitemap <- fromDocument . parseLBS . getResponseBody <$>
     httpLBS "https://dic.pixiv.net/sitemap/"
   sitemaps <- mapM (\loc ->
-              fromDocument . parseLBS_ def . getResponseBody <$>
+              fromDocument . parseLBS . getResponseBody <$>
               httpLBS (parseRequest_ (toString (innerText loc)))) $
     queryT [jq|loc|] sitemap
   return $ S.fromList $
@@ -65,13 +68,29 @@ getDicPixiv = do
     mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
     concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
 
+-- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](http://dic.nicovideo.jp/id/4652210)
+-- による読みが異なる単語の一覧
+-- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しない
+getSpecialYomiViaNicoVideo :: IO (S.Set T.Text)
+getSpecialYomiViaNicoVideo = do
+  doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "http://dic.nicovideo.jp/id/4652210"
+  return $ S.fromList $
+    replaceSymbol . normalize NFKC . T.takeWhile (/= '（') . toTextStrict . innerText <$>
+    queryT [jq|#article > ul > li|] doc
+
 replaceSymbol :: T.Text -> T.Text
 replaceSymbol = T.replace "···" "…"
 
 -- | 読みで遊んでいたり曖昧さ回避の結果など辞書に適さない単語を排除する
-dictionaryWord :: T.Text -> T.Text -> Bool
-dictionaryWord y w
-  = T.length y < 20 &&       -- 読みが異様に長くない
-    T.length w < T.length y * 2 && -- 単語が読みに比べて異様に異様に長くない
-    T.length y < T.length w * 4 && -- 読みが単語に比べて異様に長くない
-    T.all ('(' /=) w         -- 括弧を含まない
+dictionaryWord :: S.Set T.Text ->  T.Text -> T.Text -> Bool
+dictionaryWord excludeWord yomi word = and
+  [ T.length yomi < 20                -- 読みが異様に長くない
+  , T.length word < T.length yomi * 2 -- 単語が読みに比べて異様に長くない
+  , T.length yomi < T.length word * 4 -- 読みが単語に比べて異様に長くない
+  , T.all ('(' /=) word               -- 括弧を含まない
+  , word `notElem` excludeWord        -- 除外セットに入っていない
+    -- 単語の最後が兄貴ではないもしくは含んでも読みが最後に設定されている
+  , not ("兄貴" `T.isSuffixOf` word) || ("あにき" `T.isSuffixOf` word)
+    -- 単語の最後が姉貴ではないもしくは含んでも読みが最後に設定されている
+  , not ("姉貴" `T.isSuffixOf` word) || ("あねき" `T.isSuffixOf` word)
+  ]
