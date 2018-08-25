@@ -85,9 +85,9 @@ replaceSymbol = T.replace "···" "…"
 -- | 読みで遊んでいたり曖昧さ回避の結果など辞書に適さない単語を排除する
 dictionaryWord :: T.Text -> T.Text -> Bool
 dictionaryWord yomi word = and
-  [ T.length yomi < 20                -- 読みが異様に長くない
+  [ T.length yomi < 25                -- 読みが異様に長くない
   , T.length word < T.length yomi * 2 -- 単語が読みに比べて異様に長くない
-  , T.length yomi < T.length word * 4 -- 読みが単語に比べて異様に長くない
+  , T.length yomi < T.length word * 5 -- 読みが単語に比べて異様に長くない
   , T.all ('(' /=) word               -- 括弧を含まない
     -- 単語の最後が兄貴ではないもしくは含んでも読みが最後に設定されている
   , not ("兄貴" `T.isSuffixOf` word) || ("あにき" `T.isSuffixOf` word)
