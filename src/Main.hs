@@ -26,12 +26,10 @@ main = do
   dicNico <- getDicNico
   dicPixiv <- getDicPixiv
 
-  excludeWords <- getSpecialYomiViaNicoVideo
-
   T.putStrLn dicInfo
   mapM_ (\(yomi, word) -> T.putStrLn $ yomi <> "\t" <> word <> "\t" <> "固有名詞") $
     S.filter
-    (\(yomi, word) -> dictionaryWord excludeWords yomi word && S.member word dicPixiv) dicNico
+    (\(yomi, word) -> dictionaryWord yomi word && S.member word dicPixiv) dicNico
 
 getDicInfo :: IO T.Text
 getDicInfo = do
@@ -51,7 +49,10 @@ getDicNico :: IO (S.Set (T.Text, T.Text))
 getDicNico = do
   Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
     toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
-  return . S.map (\[yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)) .
+  excludeWords <- getSpecialYomiViaNicoVideo
+  return .
+    S.filter (\(_, word) -> word `notElem` excludeWords) .
+    S.map (\[yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)) .
     S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
     fromEntry msimeEntry
 
@@ -82,13 +83,12 @@ replaceSymbol :: T.Text -> T.Text
 replaceSymbol = T.replace "···" "…"
 
 -- | 読みで遊んでいたり曖昧さ回避の結果など辞書に適さない単語を排除する
-dictionaryWord :: S.Set T.Text ->  T.Text -> T.Text -> Bool
-dictionaryWord excludeWord yomi word = and
+dictionaryWord :: T.Text -> T.Text -> Bool
+dictionaryWord yomi word = and
   [ T.length yomi < 20                -- 読みが異様に長くない
   , T.length word < T.length yomi * 2 -- 単語が読みに比べて異様に長くない
   , T.length yomi < T.length word * 4 -- 読みが単語に比べて異様に長くない
   , T.all ('(' /=) word               -- 括弧を含まない
-  , word `notElem` excludeWord        -- 除外セットに入っていない
     -- 単語の最後が兄貴ではないもしくは含んでも読みが最後に設定されている
   , not ("兄貴" `T.isSuffixOf` word) || ("あにき" `T.isSuffixOf` word)
     -- 単語の最後が姉貴ではないもしくは含んでも読みが最後に設定されている
