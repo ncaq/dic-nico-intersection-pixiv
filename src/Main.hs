@@ -40,8 +40,9 @@ getDicInfo = do
     , "#github: https://github.com/ncaq/dic-nico-intersection-pixiv"
     , "#createdAt: " <> toTextStrict time
     , "#copying:"
-    , "#nicovideo: http://dic.nicovideo.jp/"
+    , "#nicovideo: https://dic.nicovideo.jp/"
     , "#nicoime: http://tkido.com/blog/1019.html"
+    , "#nicodicYomi: https://dic.nicovideo.jp/id/4652210"
     , "#pixiv: https://dic.pixiv.net/"
     ]
 
