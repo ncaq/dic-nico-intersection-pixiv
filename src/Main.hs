@@ -93,4 +93,6 @@ dictionaryWord yomi word = and
   , not ("兄貴" `T.isSuffixOf` word) || ("あにき" `T.isSuffixOf` word)
     -- 単語の最後が姉貴ではないもしくは含んでも読みが最後に設定されている
   , not ("姉貴" `T.isSuffixOf` word) || ("あねき" `T.isSuffixOf` word)
+    -- マジで?など読みが3文字以下で単語が?で終わるやつ
+  , not (T.length yomi <= 3 && T.last word == '?')
   ]
