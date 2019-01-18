@@ -6,6 +6,15 @@ maintainer: ncaq@ncaq.net
 copyright: © ncaq
 license: PublicDomain
 github: ncaq/dic-nico-intersection-pixiv
+
+ghc-options:
+- -Wall
+- -fwarn-tabs
+- -threaded
+- -O2
+- -rtsopts
+- -with-rtsopts=-N
+
 dependencies:
 - base >=4.7 && <5
 - containers
@@ -19,6 +28,7 @@ dependencies:
 - unicode-transforms
 - xml-conduit
 - zip-archive
+
 executables:
   dic-nico-intersection-pixiv:
     main: Main.hs
