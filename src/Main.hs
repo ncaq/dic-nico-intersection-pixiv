@@ -4,7 +4,6 @@ module Main where
 
 import           Codec.Archive.Zip
 import           Data.Maybe
-import           Data.Monoid
 import qualified Data.Set                as S
 import           Data.String.Transform
 import qualified Data.Text               as T
