@@ -97,4 +97,6 @@ dictionaryWord yomi word = and
   , not (T.length yomi <= 3 && T.last word == '?')
     -- 曖昧さ回避用の記事
   , not ("あいまいさ" `T.isInfixOf` yomi)
+    -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
+  , not (not ("実況" `T.isInfixOf` word) && "じっきょう" `T.isInfixOf` yomi)
   ]
