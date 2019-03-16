@@ -52,7 +52,10 @@ getDicNico = do
   excludeWords <- getSpecialYomiViaNicoVideo
   return .
     S.filter (\(_, word) -> word `notElem` excludeWords) .
-    S.map (\[yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)) .
+    S.map (\x -> case x of
+              [yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)
+              _ -> error "ニコニコ大百科IME辞書の単語分割に失敗しました"
+          ) .
     S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
     fromEntry msimeEntry
 
