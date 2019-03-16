@@ -95,4 +95,6 @@ dictionaryWord yomi word = and
   , not ("姉貴" `T.isSuffixOf` word) || ("あねき" `T.isSuffixOf` word)
     -- マジで?など読みが3文字以下で単語が?で終わるやつ
   , not (T.length yomi <= 3 && T.last word == '?')
+    -- 曖昧さ回避用の記事
+  , not ("あいまいさ" `T.isInfixOf` yomi)
   ]
