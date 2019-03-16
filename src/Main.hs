@@ -102,4 +102,6 @@ dictionaryWord yomi word = and
   , not ("あいまいさ" `T.isInfixOf` yomi)
     -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
   , not (not ("実況" `T.isInfixOf` word) && "じっきょう" `T.isInfixOf` yomi)
+    -- けものフレンズの記事はご丁寧に何故か読みにけものフレンズとつけているので排除
+  , not ("けものふれんずの" `T.isPrefixOf` yomi)
   ]
