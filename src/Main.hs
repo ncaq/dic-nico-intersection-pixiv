@@ -100,8 +100,18 @@ dictionaryWord yomi word = and
   , not (T.length yomi <= 3 && T.last word == '?')
     -- 曖昧さ回避用の記事
   , not ("あいまいさ" `T.isInfixOf` yomi)
-    -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
-  , not (not ("実況" `T.isInfixOf` word) && "じっきょう" `T.isInfixOf` yomi)
     -- けものフレンズの記事はご丁寧に何故か読みにけものフレンズとつけているので排除
   , not ("けものふれんずの" `T.isPrefixOf` yomi)
+    -- アズールレーン
+  , not ("あずれんの" `T.isPrefixOf` yomi)
+    -- 戦国BASARA
+  , not ("せんごくばさら" `T.isSuffixOf` yomi)
+    -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
+  , not (not ("実況" `T.isInfixOf` word) && "じっきょう" `T.isInfixOf` yomi)
+    -- 映画
+  , not (not ("映画" `T.isInfixOf` word) && "えいが" `T.isInfixOf` yomi)
+    -- アニメ
+  , not (not ("アニメ" `T.isInfixOf` word) && "あにめ" `T.isInfixOf` yomi)
+    -- 絵師
+  , not (not ("絵師" `T.isInfixOf` word) && "えし" `T.isInfixOf` yomi)
   ]
