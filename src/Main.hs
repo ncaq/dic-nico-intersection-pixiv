@@ -14,6 +14,7 @@ import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
+import           System.Directory
 import           Text.HTML.DOM
 import           Text.XML.Cursor
 import           Text.XML.Scraping
@@ -21,6 +22,8 @@ import           Text.XML.Selector.TH
 
 main :: IO ()
 main = do
+  createDirectoryIfMissing False "cache"
+
   dicInfo <- getDicInfo
   dicNico <- getDicNico
   dicPixiv <- getDicPixiv
@@ -61,26 +64,40 @@ getDicNico = do
 
 getDicPixiv :: IO (S.Set T.Text)
 getDicPixiv = do
-  sitemap <- fromDocument . parseLBS . getResponseBody <$>
-    httpLBS "https://dic.pixiv.net/sitemap/"
-  sitemaps <- mapM (\loc ->
-              fromDocument . parseLBS . getResponseBody <$>
-              httpLBS (parseRequest_ (toString (innerText loc)))) $
-    queryT [jq|loc|] sitemap
-  return $ S.fromList $
-    map (replaceSymbol . normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
-    mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
-    concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
+  let path = "cache/net-pixiv-dic.txt"
+  exist <- doesFileExist path
+  if exist
+    then read . toString <$> T.readFile path
+    else do
+    sitemap <- fromDocument . parseLBS . getResponseBody <$>
+      httpLBS "https://dic.pixiv.net/sitemap/"
+    sitemaps <- mapM (\loc ->
+                fromDocument . parseLBS . getResponseBody <$>
+                httpLBS (parseRequest_ (toString (innerText loc)))) $
+      queryT [jq|loc|] sitemap
+    let dic = S.fromList $
+          map (replaceSymbol . normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
+          mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
+          concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
+    T.writeFile path $ toTextStrict $ show dic
+    return dic
 
--- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](http://dic.nicovideo.jp/id/4652210)
+-- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/a/%E8%AA%AD%E3%81%BF%E3%81%8C%E9%80%9A%E5%B8%B8%E3%81%AE%E8%AA%AD%E3%81%BF%E6%96%B9%E3%81%A8%E3%81%AF%E7%95%B0%E3%81%AA%E3%82%8B%E8%A8%98%E4%BA%8B%E3%81%AE%E4%B8%80%E8%A6%A7)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しない
 getSpecialYomiViaNicoVideo :: IO (S.Set T.Text)
 getSpecialYomiViaNicoVideo = do
-  doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "http://dic.nicovideo.jp/id/4652210"
-  return $ S.fromList $
-    replaceSymbol . normalize NFKC . T.takeWhile (/= '（') . toTextStrict . innerText <$>
-    queryT [jq|#article > ul > li|] doc
+  let path = "cache/jp-nicovideo-dic-id-4652210.txt"
+  exist <- doesFileExist path
+  if exist
+    then read . toString <$> T.readFile path
+    else do
+    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "http://dic.nicovideo.jp/id/4652210"
+    let dic = S.fromList $
+          replaceSymbol . normalize NFKC . T.takeWhile (/= '（') . toTextStrict . innerText <$>
+          queryT [jq|#article > ul > li|] doc
+    T.writeFile path $ toTextStrict $ show dic
+    return dic
 
 replaceSymbol :: T.Text -> T.Text
 replaceSymbol = T.replace "···" "…"
