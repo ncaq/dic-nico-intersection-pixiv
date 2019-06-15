@@ -92,7 +92,7 @@ getSpecialYomiViaNicoVideo = do
   if exist
     then read . toString <$> T.readFile path
     else do
-    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "http://dic.nicovideo.jp/id/4652210"
+    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/id/4652210"
     let dic = S.fromList $
           replaceSymbol . normalize NFKC . T.takeWhile (/= '（') . toTextStrict . innerText <$>
           queryT [jq|#article > ul > li|] doc
