@@ -1,0 +1,3 @@
+:set -XNamedFieldPuns
+:set -XOverloadedStrings
+:set -XQuasiQuotes
