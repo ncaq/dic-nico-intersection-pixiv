@@ -1,24 +1,47 @@
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
+{-# LANGUAGE StrictData        #-}
 module Main where
 
-import           Codec.Archive.Zip
+import           Control.Concurrent.Async
+import           Data.Hashable
+import qualified Data.HashSet             as S
+import           Data.List                hiding (words)
+import qualified Data.Map                 as M
 import           Data.Maybe
-import qualified Data.Set                as S
+import           Data.String              hiding (words)
 import           Data.String.Transform
-import qualified Data.Text               as T
-import qualified Data.Text.IO            as T
-import qualified Data.Text.Lazy.Encoding as TL
+import qualified Data.Text                as T
+import           Data.Text.ICU.Translit
+import qualified Data.Text.IO             as T
+import qualified Data.Text.Lazy           as TL
 import           Data.Text.Normalize
 import           Data.Time.Format
 import           Data.Time.LocalTime
+import           GHC.Generics             (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
+import           Prelude                  hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
+import           Text.XML                 hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
+
+-- | 名前が雑すぎますが
+-- これはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
+data Entry
+  = Entry
+  { entryYomi     :: T.Text
+  , entryWord     :: T.Text
+  , entryRedirect :: Bool
+  } deriving (Eq, Ord, Show, Read, Generic)
+
+instance Hashable Entry
 
 main :: IO ()
 main = do
@@ -26,13 +49,17 @@ main = do
 
   dicInfo <- getDicInfo
   dicNico <- getDicNico
+  dicNicoSpecialYomi <- getDicNicoSpecialYomi
   dicPixiv <- getDicPixiv
 
   T.putStrLn dicInfo
-  mapM_ (\(yomi, word) -> T.putStrLn $ yomi <> "\t" <> word <> "\t" <> "固有名詞") $
-    S.filter
-    (\(yomi, word) -> dictionaryWord yomi word && S.member word dicPixiv) dicNico
 
+  let dictionaryFilter = S.filter $ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
+      dictionary = sortOn entryYomi $ S.toList $ dictionaryFilter dicNico
+
+  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionary
+
+-- | 生成日を含めたこのデータの情報を表示する
 getDicInfo :: IO T.Text
 getDicInfo = do
   time <- formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z" <$> getZonedTime
@@ -48,87 +75,147 @@ getDicInfo = do
     , "#pixiv: https://dic.pixiv.net/"
     ]
 
-getDicNico :: IO (S.Set (T.Text, T.Text))
+-- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
+-- から単語と読み一覧を取得する
+getDicNico :: IO (S.HashSet Entry)
 getDicNico = do
-  Archive{zEntries = [_, msimeEntry@Entry{eRelativePath = "nicoime_msime.txt"}]} <-
-    toArchive . getResponseBody <$> httpLBS "http://tkido.com/data/nicoime.zip"
-  excludeWords <- getSpecialYomiViaNicoVideo
-  return .
-    S.filter (\(_, word) -> word `notElem` excludeWords) .
-    S.map (\x -> case x of
-              [yomi, word, _] -> (normalize NFKC yomi, replaceSymbol $ normalize NFKC word)
-              _ -> error "ニコニコ大百科IME辞書の単語分割に失敗しました"
-          ) .
-    S.map (T.split ('\t' ==)) . S.fromList . drop 8 . T.lines . toTextStrict . TL.decodeUtf16LE $
-    fromEntry msimeEntry
-
-getDicPixiv :: IO (S.Set T.Text)
-getDicPixiv = do
-  let path = "cache/net-pixiv-dic.txt"
+  let path = "cache/jp-nicovideo-dic.txt"
   exist <- doesFileExist path
   if exist
-    then read . toString <$> T.readFile path
+    then read <$> Prelude.readFile path
     else do
-    sitemap <- fromDocument . parseLBS . getResponseBody <$>
-      httpLBS "https://dic.pixiv.net/sitemap/"
-    sitemaps <- mapM (\loc ->
-                fromDocument . parseLBS . getResponseBody <$>
-                httpLBS (parseRequest_ (toString (innerText loc)))) $
-      queryT [jq|loc|] sitemap
-    let dic = S.fromList $
-          map (replaceSymbol . normalize NFKC . toTextStrict . urlDecode False . toByteStringStrict) $
-          mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") $
-          concatMap (map (toTextStrict . innerText) . queryT [jq|loc|]) sitemaps
-    T.writeFile path $ toTextStrict $ show dic
+    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/m/a/a"
+    let chars = map TL.head $ filter (\text -> TL.length text == 1) $ map innerText $
+          queryT [jq|.st-box_contents > table > tr > td > a|] doc
+    dic <- mconcat <$> mapConcurrently getDicNicoTitle chars
+    Prelude.writeFile path $ show dic
     return dic
+
+-- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
+-- のような記事からページャを辿って再帰的にデータを取得する
+getDicNicoTitle :: Char -> IO (S.HashSet Entry)
+getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toString (urlEncode False (toByteStringStrict [c]))
+
+-- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
+getDicNicoPage :: String -> IO (S.HashSet Entry)
+getDicNicoPage href = do
+  doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS (fromString href)
+  let articles = queryT [jq|.article ul ul li|] doc
+      texts = map (TL.strip . innerText) articles
+      words = map (TL.strip . innerText . queryT [jq|a|]) articles
+      extras = map (\(word, text) -> fromJust $ TL.strip <$> TL.stripPrefix word text) $ zip words texts
+      dic = S.fromList $ map
+            (\(word, extra) ->
+                let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
+                    -- icuで変換,長音記号が変換されてしまうので誤魔化す
+                    hiraganaYomi = T.replace "!" "ー" $ transliterate (trans "Katakana-Hiragana") $
+                      T.replace "ー" "!" $ toTextStrict yomi
+                in Entry
+                   { entryWord = normalizeWord $ toTextStrict word
+                   , entryYomi = normalizeWord hiraganaYomi
+                   , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
+                   }) $ zip words extras
+      nodes = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
+  nextDic <-
+        case find (\case
+                      NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
+                      _ -> False
+                  ) nodes of
+          Just (NodeElement (Element _ attrs _)) ->
+            case M.lookup "href" attrs of
+              Nothing -> return Nothing
+              Just newHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString newHref)
+          _ -> return Nothing
+  return $ dic <> fromMaybe S.empty nextDic
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/a/%E8%AA%AD%E3%81%BF%E3%81%8C%E9%80%9A%E5%B8%B8%E3%81%AE%E8%AA%AD%E3%81%BF%E6%96%B9%E3%81%A8%E3%81%AF%E7%95%B0%E3%81%AA%E3%82%8B%E8%A8%98%E4%BA%8B%E3%81%AE%E4%B8%80%E8%A6%A7)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しない
-getSpecialYomiViaNicoVideo :: IO (S.Set T.Text)
-getSpecialYomiViaNicoVideo = do
+getDicNicoSpecialYomi :: IO (S.HashSet T.Text)
+getDicNicoSpecialYomi = do
   let path = "cache/jp-nicovideo-dic-id-4652210.txt"
   exist <- doesFileExist path
   if exist
-    then read . toString <$> T.readFile path
+    then read <$> Prelude.readFile path
     else do
     doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/id/4652210"
-    let dic = S.fromList $
-          replaceSymbol . normalize NFKC . T.takeWhile (/= '（') . toTextStrict . innerText <$>
-          queryT [jq|#article > ul > li|] doc
-    T.writeFile path $ toTextStrict $ show dic
+    let dic = S.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
+              queryT [jq|#article ul li|] doc
+    Prelude.writeFile path $ show dic
     return dic
 
+-- | Pixiv百科時点のサイトマップから記事一覧データを取得する
+getDicPixiv :: IO (S.HashSet T.Text)
+getDicPixiv = do
+  let path = "cache/net-pixiv-dic.txt"
+  exist <- doesFileExist path
+  if exist
+    then read <$> Prelude.readFile path
+    else do
+    sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap/"
+    sitemaps <- mapConcurrently
+      (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
+      queryT [jq|loc|] sitemap
+    let dic = S.fromList $
+          map (normalizeWord . toTextStrict . urlDecode False . toByteStringStrict) $
+          mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
+          concatMap (map innerText . queryT [jq|loc|]) sitemaps
+    Prelude.writeFile path $ show dic
+    return dic
+
+-- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化する
+normalizeWord :: T.Text -> T.Text
+normalizeWord = replaceSymbol . normalize NFKC
+
+-- | 中黒で三点リーダを表現しようとしているのを変換
 replaceSymbol :: T.Text -> T.Text
 replaceSymbol = T.replace "···" "…"
 
--- | 読みで遊んでいたり曖昧さ回避の結果など辞書に適さない単語を排除する
-dictionaryWord :: T.Text -> T.Text -> Bool
-dictionaryWord yomi word = and
-  [ T.length yomi < 25                -- 読みが異様に長くない
-  , T.length word < T.length yomi * 3 -- 単語が読みに比べて異様に長くない
-  , T.length yomi < T.length word * 6 -- 読みが単語に比べて異様に長くない
-  , T.all ('(' /=) word               -- 括弧を含まない
-    -- 単語の最後が兄貴ではないもしくは含んでも読みが最後に設定されている
-  , not ("兄貴" `T.isSuffixOf` word) || ("あにき" `T.isSuffixOf` word)
-    -- 単語の最後が姉貴ではないもしくは含んでも読みが最後に設定されている
-  , not ("姉貴" `T.isSuffixOf` word) || ("あねき" `T.isSuffixOf` word)
-    -- マジで?など読みが3文字以下で単語が?で終わるやつ
-  , not (T.length yomi <= 3 && T.last word == '?')
-    -- 曖昧さ回避用の記事
-  , not ("あいまいさ" `T.isInfixOf` yomi)
-    -- けものフレンズの記事はご丁寧に何故か読みにけものフレンズとつけているので排除
-  , not ("けものふれんずの" `T.isPrefixOf` yomi)
+-- | 辞書に適している単語を抽出する
+dictionaryWord :: S.HashSet Entry -> S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
+dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, entryRedirect} = and
+  [ entryWord `S.member` dicPixiv                 -- Pixiv百科時点にも存在する
+  , not (entryWord `S.member` dicNicoSpecialYomi) -- 特殊な読みではない
+    -- 読みが異様に短くない
+  , 1 < T.length entryYomi
+    -- 読みが異様に長くない
+  , T.length entryYomi < 25
+    -- 単語が読みに比べて異様に長くない
+  , T.length entryWord < T.length entryYomi * 3
+    -- 読みが単語に比べて異様に長くない
+  , T.length entryYomi < T.length entryWord * 6
+    -- 括弧を含まない
+  , T.all ('(' /=) entryWord
+    -- マジで?など読みが3文字以下で単語が?で終わるやつは排除
+  , not (T.length entryYomi <= 3 && T.last entryWord == '?')
+    -- いま!など読みが3文字以下で単語が!で終わるやつは排除
+  , not (T.length entryYomi <= 3 && T.last entryWord == '!')
+    -- 曖昧さ回避用
+  , not ("あいまいさ" `T.isInfixOf` entryYomi)
+    -- 一覧
+  , not ("一覧" `T.isSuffixOf` entryWord)
+    -- 画像集
+  , not ("画像集" `T.isSuffixOf` entryWord)
+    -- けものフレンズ
+  , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
     -- アズールレーン
-  , not ("あずれんの" `T.isPrefixOf` yomi)
+  , not ("あずれんの" `T.isPrefixOf` entryYomi)
     -- 戦国BASARA
-  , not ("せんごくばさら" `T.isSuffixOf` yomi)
+  , not ("せんごくばさら" `T.isSuffixOf` entryYomi)
+    -- 単語の最後が兄貴の場合読みも兄貴で終わる
+  , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryWord)
+    -- 単語の最後が姉貴の場合読みも姉貴で終わる
+  , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryWord)
     -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
-  , not (not ("実況" `T.isInfixOf` word) && "じっきょう" `T.isInfixOf` yomi)
+  , not (not ("実況" `T.isInfixOf` entryWord) && "じっきょう" `T.isInfixOf` entryYomi)
     -- 映画
-  , not (not ("映画" `T.isInfixOf` word) && "えいが" `T.isInfixOf` yomi)
+  , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
     -- アニメ
-  , not (not ("アニメ" `T.isInfixOf` word) && "あにめ" `T.isInfixOf` yomi)
+  , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
     -- 絵師
-  , not (not ("絵師" `T.isInfixOf` word) && "えし" `T.isInfixOf` yomi)
+  , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
+    -- 誤変換指摘対策,同一のリダイレクト記事ではない読みが他に存在するリダイレクト項目は出力しない
+  , not entryRedirect ||
+    not (S.null (S.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
+                             not otherRedirect && otherYomi == entryYomi) dicNico))
   ]
