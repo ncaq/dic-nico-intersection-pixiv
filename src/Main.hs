@@ -11,7 +11,7 @@ import           Control.Concurrent.Async
 import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.Hashable
-import qualified Data.HashSet                as S
+import qualified Data.HashSet                as H
 import           Data.List                   hiding (words)
 import qualified Data.Map                    as M
 import           Data.Maybe
@@ -51,16 +51,16 @@ main = do
   createDirectoryIfMissing False "cache"
 
   dicInfo <- getDicInfo
-  dicNico <- getDicNico
+  -- ニコニコ大百科とPixiv百科時点は読み込み元が違うので安全に並行で取得できる
+  (dicNico, dicPixiv) <- concurrently getDicNico getDicPixiv
+  -- ニコニコ大百科同士で並列化すると読み込みすぎになりかねないのでこれは単独で読み込む
   dicNicoSpecialYomi <- getDicNicoSpecialYomi
-  dicPixiv <- getDicPixiv
 
   T.putStrLn dicInfo
 
-  let dictionaryFilter = S.filter $ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
-      dictionarySet = dictionaryFilter dicNico
-      -- 焼け石に水ですが一応並列評価する
-      dictionaryList = sortOn entryYomi (S.toList dictionarySet) `using` parList rdeepseq
+  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
+      dictionaryFilter = H.filter dictionaryWordPred
+      dictionaryList = sortOn entryYomi $ H.toList $ dictionaryFilter dicNico
 
   mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionaryList
 
@@ -80,7 +80,7 @@ getDicInfo = do
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
 -- から単語と読み一覧を取得する
-getDicNico :: IO (S.HashSet Entry)
+getDicNico :: IO (H.HashSet Entry)
 getDicNico = do
   let path = "cache/jp-nicovideo-dic.txt"
   exist <- doesFileExist path
@@ -96,14 +96,14 @@ getDicNico = do
 
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
 -- のような記事からページャを辿って再帰的にデータを取得する
-getDicNicoTitle :: Char -> IO (S.HashSet Entry)
+getDicNicoTitle :: Char -> IO (H.HashSet Entry)
 getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toString (urlEncode False (toByteStringStrict [c]))
 
 -- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
-getDicNicoPage :: String -> IO (S.HashSet Entry)
+getDicNicoPage :: String -> IO (H.HashSet Entry)
 getDicNicoPage href = do
-  -- BAN回避のため0.1秒スリープ
-  threadDelay $ 100 * 1000
+  -- BAN回避のため0.01秒スリープ
+  threadDelay $ 10 * 1000
   response <- do
     response0 <- httpLBS (fromString href)
     if getResponseStatus response0 == status200
@@ -121,7 +121,7 @@ getDicNicoPage href = do
       texts = map (TL.strip . innerText) articles
       words = map (TL.strip . innerText . queryT [jq|a|]) articles
       extras = map (\(word, text) -> fromJust $ TL.strip <$> TL.stripPrefix word text) $ zip words texts
-      dic = S.fromList $ map
+      dic = H.fromList $ map
             (\(word, extra) ->
                 let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
                     -- icuで変換,長音記号が変換されてしまうので誤魔化す
@@ -133,7 +133,7 @@ getDicNicoPage href = do
                    , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
                    }) $ zip words extras
       nodes = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
-  when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
+  when (H.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
         case find (\case
                       NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
@@ -144,26 +144,30 @@ getDicNicoPage href = do
               Nothing -> return Nothing
               Just newHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString newHref)
           _ -> return Nothing
-  return $ dic <> fromMaybe S.empty nextDic
+  return $ dic <> fromMaybe H.empty nextDic
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/a/%E8%AA%AD%E3%81%BF%E3%81%8C%E9%80%9A%E5%B8%B8%E3%81%AE%E8%AA%AD%E3%81%BF%E6%96%B9%E3%81%A8%E3%81%AF%E7%95%B0%E3%81%AA%E3%82%8B%E8%A8%98%E4%BA%8B%E3%81%AE%E4%B8%80%E8%A6%A7)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しない
-getDicNicoSpecialYomi :: IO (S.HashSet T.Text)
+getDicNicoSpecialYomi :: IO (H.HashSet T.Text)
 getDicNicoSpecialYomi = do
   let path = "cache/jp-nicovideo-dic-id-4652210.txt"
   exist <- doesFileExist path
   if exist
     then read <$> Prelude.readFile path
     else do
-    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/id/4652210"
-    let dic = S.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
+    let href = "https://dic.nicovideo.jp/id/4652210"
+    response <- httpLBS $ fromString href
+    when (getResponseStatus response /= status200) $
+      error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response
+    let doc = fromDocument $ parseLBS $ getResponseBody response
+        dic = H.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
               queryT [jq|#article ul li|] doc
     Prelude.writeFile path $ show dic
     return dic
 
 -- | Pixiv百科時点のサイトマップから記事一覧データを取得する
-getDicPixiv :: IO (S.HashSet T.Text)
+getDicPixiv :: IO (H.HashSet T.Text)
 getDicPixiv = do
   let path = "cache/net-pixiv-dic.txt"
   exist <- doesFileExist path
@@ -171,10 +175,9 @@ getDicPixiv = do
     then read <$> Prelude.readFile path
     else do
     sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap/"
-    sitemaps <- mapConcurrently
-      (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
+    sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
       queryT [jq|loc|] sitemap
-    let dic = S.fromList $
+    let dic = H.fromList $
           map (normalizeWord . toTextStrict . urlDecode False . toByteStringStrict) $
           mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
           concatMap (map innerText . queryT [jq|loc|]) sitemaps
@@ -190,10 +193,10 @@ replaceSymbol :: T.Text -> T.Text
 replaceSymbol = T.replace "···" "…"
 
 -- | 辞書に適している単語を抽出する
-dictionaryWord :: S.HashSet Entry -> S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
+dictionaryWord :: H.HashSet Entry -> H.HashSet T.Text -> H.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, entryRedirect} = and
-  [ entryWord `S.member` dicPixiv                 -- Pixiv百科時点にも存在する
-  , not (entryWord `S.member` dicNicoSpecialYomi) -- 特殊な読みではない
+  [ entryWord `H.member` dicPixiv                 -- Pixiv百科時点にも存在する
+  , not (entryWord `H.member` dicNicoSpecialYomi) -- 特殊な読みではない
     -- 読みが異様に短くない
   , 1 < T.length entryYomi
     -- 読みが異様に長くない
@@ -234,6 +237,6 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- 誤変換指摘対策,同一のリダイレクト記事ではない読みが他に存在するリダイレクト項目は出力しない
   , not entryRedirect ||
-    not (S.null (S.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
+    not (H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
                              not otherRedirect && otherYomi == entryYomi) dicNico))
   ]
