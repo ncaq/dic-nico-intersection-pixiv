@@ -39,6 +39,7 @@ dependencies:
   - html-conduit
   - http-conduit
   - http-types
+  - parallel
   - string-transform
   - text
   - text-icu-translit

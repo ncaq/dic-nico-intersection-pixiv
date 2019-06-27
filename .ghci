@@ -1,3 +1,5 @@
+:set -XDeriveGeneric
+:set -XLambdaCase
 :set -XNamedFieldPuns
 :set -XOverloadedStrings
 :set -XQuasiQuotes

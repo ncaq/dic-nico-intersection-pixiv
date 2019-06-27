@@ -1,33 +1,36 @@
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
-{-# LANGUAGE StrictData        #-}
 module Main where
 
+import           Control.Concurrent
 import           Control.Concurrent.Async
+import           Control.Monad
+import           Control.Parallel.Strategies
 import           Data.Hashable
-import qualified Data.HashSet             as S
-import           Data.List                hiding (words)
-import qualified Data.Map                 as M
+import qualified Data.HashSet                as S
+import           Data.List                   hiding (words)
+import qualified Data.Map                    as M
 import           Data.Maybe
-import           Data.String              hiding (words)
+import           Data.String                 hiding (words)
 import           Data.String.Transform
-import qualified Data.Text                as T
+import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
-import qualified Data.Text.IO             as T
-import qualified Data.Text.Lazy           as TL
+import qualified Data.Text.IO                as T
+import qualified Data.Text.Lazy              as TL
 import           Data.Text.Normalize
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           GHC.Generics             (Generic)
+import           GHC.Generics                (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Prelude                  hiding (words)
+import           Prelude                     hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
-import           Text.XML                 hiding (parseLBS)
+import           Text.XML                    hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
@@ -36,10 +39,10 @@ import           Text.XML.Selector.TH
 -- これはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
 data Entry
   = Entry
-  { entryYomi     :: T.Text
-  , entryWord     :: T.Text
-  , entryRedirect :: Bool
-  } deriving (Eq, Ord, Show, Read, Generic)
+  { entryYomi     :: !T.Text
+  , entryWord     :: !T.Text
+  , entryRedirect :: !Bool
+  } deriving (Eq, Ord, Show, Read, Generic, NFData)
 
 instance Hashable Entry
 
@@ -55,9 +58,11 @@ main = do
   T.putStrLn dicInfo
 
   let dictionaryFilter = S.filter $ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
-      dictionary = sortOn entryYomi $ S.toList $ dictionaryFilter dicNico
+      dictionarySet = dictionaryFilter dicNico
+      -- 焼け石に水ですが一応並列評価する
+      dictionaryList = sortOn entryYomi (S.toList dictionarySet) `using` parList rdeepseq
 
-  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionary
+  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionaryList
 
 -- | 生成日を含めたこのデータの情報を表示する
 getDicInfo :: IO T.Text
@@ -87,7 +92,7 @@ getDicNico = do
     doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/m/a/a"
     let chars = map TL.head $ filter (\text -> TL.length text == 1) $ map innerText $
           queryT [jq|.st-box_contents > table > tr > td > a|] doc
-    dic <- mconcat <$> mapConcurrently getDicNicoTitle chars
+    dic <- mconcat <$> mapM getDicNicoTitle chars
     Prelude.writeFile path $ show dic
     return dic
 
@@ -99,8 +104,22 @@ getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toStr
 -- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
 getDicNicoPage :: String -> IO (S.HashSet Entry)
 getDicNicoPage href = do
-  doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS (fromString href)
-  let articles = queryT [jq|.article ul ul li|] doc
+  -- BAN回避のため0.1秒スリープ
+  threadDelay $ 100 * 1000
+  response <- do
+    response0 <- httpLBS (fromString href)
+    if getResponseStatus response0 == status200
+      then return response0
+      else do
+      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので,失敗した場合もう一度だけリトライする
+      -- 1秒スリープ
+      threadDelay $ 1000 * 1000
+      response1 <- httpLBS (fromString href)
+      unless (getResponseStatus response1 == status200) $
+        error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response1
+      return response1
+  let doc = fromDocument $ parseLBS $ getResponseBody response
+      articles = queryT [jq|.article ul ul li|] doc
       texts = map (TL.strip . innerText) articles
       words = map (TL.strip . innerText . queryT [jq|a|]) articles
       extras = map (\(word, text) -> fromJust $ TL.strip <$> TL.stripPrefix word text) $ zip words texts
@@ -116,6 +135,7 @@ getDicNicoPage href = do
                    , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
                    }) $ zip words extras
       nodes = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
+  when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
         case find (\case
                       NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
