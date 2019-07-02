@@ -40,6 +40,7 @@ dependencies:
   - html-conduit
   - http-conduit
   - http-types
+  - parallel
   - store
   - string-transform
   - text

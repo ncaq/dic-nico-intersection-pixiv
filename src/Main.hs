@@ -8,29 +8,30 @@ module Main where
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
-import qualified Data.ByteString          as B
+import           Control.Parallel.Strategies
+import qualified Data.ByteString             as B
 import           Data.Hashable
-import qualified Data.HashSet             as H
-import           Data.List                hiding (words)
-import qualified Data.Map.Strict          as M
+import qualified Data.HashSet                as H
+import           Data.List                   hiding (words)
+import qualified Data.Map.Strict             as M
 import           Data.Maybe
 import           Data.Store
-import           Data.String              hiding (words)
+import           Data.String                 hiding (words)
 import           Data.String.Transform
-import qualified Data.Text                as T
+import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
-import qualified Data.Text.IO             as T
-import qualified Data.Text.Lazy           as TL
+import qualified Data.Text.IO                as T
+import qualified Data.Text.Lazy              as TL
 import           Data.Text.Normalize
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           GHC.Generics             (Generic)
+import           GHC.Generics                (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Prelude                  hiding (words)
+import           Prelude                     hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
-import           Text.XML                 hiding (parseLBS)
+import           Text.XML                    hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
@@ -62,12 +63,16 @@ main = do
   -- 参考情報をプリント
   T.putStrLn dicInfo
 
-  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv -- 最適化がかかることを期待して部分適用
-      dictionaryFilter = H.filter dictionaryWordPred                          -- フィルタリング処理関数を生成
-      dictionaryList = sortOn entryYomi $ H.toList $ dictionaryFilter dicNico -- HashSetは順番バラバラなのでリストにしてsortする
+      -- 最適化がかかることを期待するのとghciでのデバッグを楽にするために部分適用
+  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
+      -- フィルタリング処理関数を生成
+      dictionaryFilter = filter dictionaryWordPred
+      -- リスト化して並列フィルタリング処理(気休め)
+      -- HashSetは順番バラバラなので最終的にソートする
+      dictionarySorted = sortOn entryYomi (dictionaryFilter (H.toList dicNico)) `using` parList rseq
 
   -- 辞書本体をプリント
-  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionaryList
+  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
 getDicInfo :: IO T.Text
