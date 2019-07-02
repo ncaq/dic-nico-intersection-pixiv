@@ -195,8 +195,8 @@ replaceSymbol = T.replace "···" "…"
 -- | 辞書に適している単語を抽出する
 dictionaryWord :: H.HashSet Entry -> H.HashSet T.Text -> H.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, entryRedirect} = and
-  [ entryWord `H.member` dicPixiv                 -- Pixiv百科時点にも存在する
-  , not (entryWord `H.member` dicNicoSpecialYomi) -- 特殊な読みではない
+  [ entryWord `H.member` dicPixiv                 -- Pixiv百科時点にも存在する単語のみを使う
+  , not (entryWord `H.member` dicNicoSpecialYomi) -- 記事に載っている特殊な読みではない
     -- 読みが異様に短くない
   , 1 < T.length entryYomi
     -- 読みが異様に長くない
@@ -211,31 +211,27 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not (T.length entryYomi <= 3 && T.last entryWord == '?')
     -- いま!など読みが3文字以下で単語が!で終わるやつは排除
   , not (T.length entryYomi <= 3 && T.last entryWord == '!')
-    -- 曖昧さ回避用
+    -- 曖昧さ回避などわかりやすい非単語記事ではない
   , not ("あいまいさ" `T.isInfixOf` entryYomi)
-    -- 一覧
   , not ("一覧" `T.isSuffixOf` entryWord)
-    -- 画像集
   , not ("画像集" `T.isSuffixOf` entryWord)
-    -- けものフレンズ
+    -- 読みにけものフレンズなど曖昧さ回避を含むと辞書としては使い物にならないので除外
   , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
-    -- アズールレーン
   , not ("あずれんの" `T.isPrefixOf` entryYomi)
-    -- 戦国BASARA
   , not ("せんごくばさら" `T.isSuffixOf` entryYomi)
-    -- 単語の最後が兄貴の場合読みも兄貴で終わる
+    -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
+    -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に｢兄貴｣がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryWord)
-    -- 単語の最後が姉貴の場合読みも姉貴で終わる
   , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryWord)
-    -- 記事名に実況を含まないのにも関らず読みで実況者を表現しようとしている記事を除外
+    -- 記事名にその単語を含まないのにも関らず読みそれを表現しようとしている記事を除外
   , not (not ("実況" `T.isInfixOf` entryWord) && "じっきょう" `T.isInfixOf` entryYomi)
-    -- 映画
   , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
-    -- アニメ
   , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
-    -- 絵師
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
-    -- 誤変換指摘対策,同一のリダイレクト記事ではない読みが他に存在するリダイレクト項目は出力しない
+    -- ｢1月1日｣のような単語はあっても辞書として意味がなく容量を食うだけなので除外
+  , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
+    -- 誤変換指摘対策
+    -- 同一読みのリダイレクトではない記事が他に存在するリダイレクト項目は除外します
   , not entryRedirect ||
     not (H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
                              not otherRedirect && otherYomi == entryYomi) dicNico))
