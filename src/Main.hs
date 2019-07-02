@@ -12,7 +12,7 @@ import qualified Data.ByteString          as B
 import           Data.Hashable
 import qualified Data.HashSet             as H
 import           Data.List                hiding (words)
-import qualified Data.Map                 as M
+import qualified Data.Map.Strict          as M
 import           Data.Maybe
 import           Data.Store
 import           Data.String              hiding (words)
