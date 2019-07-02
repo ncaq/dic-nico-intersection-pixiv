@@ -10,6 +10,7 @@ import           Control.Concurrent.Async
 import           Control.Monad
 import           Control.Parallel.Strategies
 import qualified Data.ByteString             as B
+import           Data.Char
 import           Data.Hashable
 import qualified Data.HashSet                as H
 import           Data.List                   hiding (words)
@@ -248,6 +249,8 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
     -- 年号だけの記事を除外
   , not ("年" `T.isSuffixOf` entryWord)
+    -- 数字だけの記事を除外
+  , not (T.all isNumber entryWord)
     -- 誤変換指摘対策
     -- 同一読みのリダイレクトではない記事が他に存在するリダイレクト項目は除外します
   , not entryRedirect ||
