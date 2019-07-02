@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
@@ -9,28 +8,29 @@ module Main where
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
-import           Control.Parallel.Strategies
+import qualified Data.ByteString          as B
 import           Data.Hashable
-import qualified Data.HashSet                as H
-import           Data.List                   hiding (words)
-import qualified Data.Map                    as M
+import qualified Data.HashSet             as H
+import           Data.List                hiding (words)
+import qualified Data.Map                 as M
 import           Data.Maybe
-import           Data.String                 hiding (words)
+import           Data.Store
+import           Data.String              hiding (words)
 import           Data.String.Transform
-import qualified Data.Text                   as T
+import qualified Data.Text                as T
 import           Data.Text.ICU.Translit
-import qualified Data.Text.IO                as T
-import qualified Data.Text.Lazy              as TL
+import qualified Data.Text.IO             as T
+import qualified Data.Text.Lazy           as TL
 import           Data.Text.Normalize
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           GHC.Generics                (Generic)
+import           GHC.Generics             (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Prelude                     hiding (words)
+import           Prelude                  hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
-import           Text.XML                    hiding (parseLBS)
+import           Text.XML                 hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
@@ -42,26 +42,31 @@ data Entry
   { entryYomi     :: !T.Text
   , entryWord     :: !T.Text
   , entryRedirect :: !Bool
-  } deriving (Eq, Ord, Show, Read, Generic, NFData)
+  } deriving (Eq, Show, Generic)
 
 instance Hashable Entry
+instance Store Entry
 
 main :: IO ()
 main = do
+  -- キャッシュディレクトリがなければ作成する
   createDirectoryIfMissing False "cache"
 
   dicInfo <- getDicInfo
   -- ニコニコ大百科とPixiv百科時点は読み込み元が違うので安全に並行で取得できる
   (dicNico, dicPixiv) <- concurrently getDicNico getDicPixiv
   -- ニコニコ大百科同士で並列化すると読み込みすぎになりかねないのでこれは単独で読み込む
+  -- キャッシュされている場合もそんなに容量が大きくないのでデシリアライズに時間を使わない
   dicNicoSpecialYomi <- getDicNicoSpecialYomi
 
+  -- 参考情報をプリント
   T.putStrLn dicInfo
 
-  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
-      dictionaryFilter = H.filter dictionaryWordPred
-      dictionaryList = sortOn entryYomi $ H.toList $ dictionaryFilter dicNico
+  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv -- 最適化がかかることを期待して部分適用
+      dictionaryFilter = H.filter dictionaryWordPred                          -- フィルタリング処理関数を生成
+      dictionaryList = sortOn entryYomi $ H.toList $ dictionaryFilter dicNico -- HashSetは順番バラバラなのでリストにしてsortする
 
+  -- 辞書本体をプリント
   mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionaryList
 
 -- | 生成日を含めたこのデータの情報を表示する
@@ -82,16 +87,16 @@ getDicInfo = do
 -- から単語と読み一覧を取得する
 getDicNico :: IO (H.HashSet Entry)
 getDicNico = do
-  let path = "cache/jp-nicovideo-dic.txt"
+  let path = "cache/jp-nicovideo-dic"
   exist <- doesFileExist path
   if exist
-    then read <$> Prelude.readFile path
+    then B.readFile path >>= decodeIO
     else do
     doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/m/a/a"
     let chars = map TL.head $ filter (\text -> TL.length text == 1) $ map innerText $
           queryT [jq|.st-box_contents > table > tr > td > a|] doc
     dic <- mconcat <$> mapM getDicNicoTitle chars
-    Prelude.writeFile path $ show dic
+    B.writeFile path $ encode dic
     return dic
 
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
@@ -109,7 +114,7 @@ getDicNicoPage href = do
     if getResponseStatus response0 == status200
       then return response0
       else do
-      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので,失敗した場合もう一度だけリトライする
+      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので失敗した場合もう一度だけリトライする
       -- 1秒スリープ
       threadDelay $ 1000 * 1000
       response1 <- httpLBS (fromString href)
@@ -124,7 +129,8 @@ getDicNicoPage href = do
       dic = H.fromList $ map
             (\(word, extra) ->
                 let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
-                    -- icuで変換,長音記号が変換されてしまうので誤魔化す
+                    -- icuで変換
+                    -- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
                     hiraganaYomi = T.replace "!" "ー" $ transliterate (trans "Katakana-Hiragana") $
                       T.replace "ー" "!" $ toTextStrict yomi
                 in Entry
@@ -148,13 +154,14 @@ getDicNicoPage href = do
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/a/%E8%AA%AD%E3%81%BF%E3%81%8C%E9%80%9A%E5%B8%B8%E3%81%AE%E8%AA%AD%E3%81%BF%E6%96%B9%E3%81%A8%E3%81%AF%E7%95%B0%E3%81%AA%E3%82%8B%E8%A8%98%E4%BA%8B%E3%81%AE%E4%B8%80%E8%A6%A7)
 -- による読みが異なる単語の一覧
--- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しない
+-- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
+-- 実は取得が雑で"概要"とかも入ってしまっていますが別に除外されて問題ないので放置しています
 getDicNicoSpecialYomi :: IO (H.HashSet T.Text)
 getDicNicoSpecialYomi = do
-  let path = "cache/jp-nicovideo-dic-id-4652210.txt"
+  let path = "cache/jp-nicovideo-dic-id-4652210"
   exist <- doesFileExist path
   if exist
-    then read <$> Prelude.readFile path
+    then B.readFile path >>= decodeIO
     else do
     let href = "https://dic.nicovideo.jp/id/4652210"
     response <- httpLBS $ fromString href
@@ -163,16 +170,16 @@ getDicNicoSpecialYomi = do
     let doc = fromDocument $ parseLBS $ getResponseBody response
         dic = H.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
               queryT [jq|#article ul li|] doc
-    Prelude.writeFile path $ show dic
+    B.writeFile path $ encode dic
     return dic
 
 -- | Pixiv百科時点のサイトマップから記事一覧データを取得する
 getDicPixiv :: IO (H.HashSet T.Text)
 getDicPixiv = do
-  let path = "cache/net-pixiv-dic.txt"
+  let path = "cache/net-pixiv-dic"
   exist <- doesFileExist path
   if exist
-    then read <$> Prelude.readFile path
+    then B.readFile path >>= decodeIO
     else do
     sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap/"
     sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
@@ -181,7 +188,7 @@ getDicPixiv = do
           map (normalizeWord . toTextStrict . urlDecode False . toByteStringStrict) $
           mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
           concatMap (map innerText . queryT [jq|loc|]) sitemaps
-    Prelude.writeFile path $ show dic
+    B.writeFile path $ encode dic
     return dic
 
 -- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化する

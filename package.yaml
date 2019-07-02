@@ -32,6 +32,7 @@ ghc-options:
 dependencies:
   - base >=4.7 && <5
   - async
+  - bytestring
   - containers
   - directory
   - dom-selector
@@ -39,7 +40,7 @@ dependencies:
   - html-conduit
   - http-conduit
   - http-types
-  - parallel
+  - store
   - string-transform
   - text
   - text-icu-translit
