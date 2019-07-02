@@ -244,6 +244,6 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
     -- 誤変換指摘対策
     -- 同一読みのリダイレクトではない記事が他に存在するリダイレクト項目は除外します
   , not entryRedirect ||
-    not (H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
-                             not otherRedirect && otherYomi == entryYomi) dicNico))
+    H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
+                        not otherRedirect && otherYomi == entryYomi) dicNico)
   ]
