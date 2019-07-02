@@ -212,6 +212,10 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , T.length entryWord < T.length entryYomi * 3
     -- 読みが単語に比べて異様に長くない
   , T.length entryYomi < T.length entryWord * 6
+    -- 読みと単語が違うこと
+    -- 読みと単語が一致しているエントリーはサジェストに役立つぐらいですが
+    -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため排除
+  , entryYomi /= entryWord
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
     -- マジで?など読みが3文字以下で単語が?で終わるやつは排除
