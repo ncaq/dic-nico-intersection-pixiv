@@ -246,6 +246,8 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- ｢1月1日｣のような単語はあっても辞書として意味がなく容量を食うだけなので除外
   , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
+    -- 年号だけの記事を除外
+  , not ("年" `T.isSuffixOf` entryWord)
     -- 誤変換指摘対策
     -- 同一読みのリダイレクトではない記事が他に存在するリダイレクト項目は除外します
   , not entryRedirect ||
