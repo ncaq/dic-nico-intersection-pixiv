@@ -1,2 +1,6 @@
 *.cabal
 .stack-work/
+
+cache/
+
+dic-nico-intersection-pixiv*.txt

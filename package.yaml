@@ -1,5 +1,5 @@
 name: dic-nico-intersection-pixiv
-version: 0.0.1
+version: 0.1.0
 category: Language
 author: ncaq
 maintainer: ncaq@ncaq.net
@@ -31,17 +31,24 @@ ghc-options:
 
 dependencies:
   - base >=4.7 && <5
+  - async
+  - bytestring
   - containers
+  - directory
   - dom-selector
+  - hashable
   - html-conduit
   - http-conduit
   - http-types
+  - parallel
+  - store
   - string-transform
   - text
+  - text-icu-translit
   - time
   - unicode-transforms
+  - unordered-containers
   - xml-conduit
-  - zip-archive
 
 executables:
   dic-nico-intersection-pixiv:
