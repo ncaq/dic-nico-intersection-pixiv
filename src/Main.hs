@@ -142,13 +142,13 @@ getDicNicoPage href = do
                    , entryYomi = normalizeWord hiraganaYomi
                    , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
                    }) $ zip words extras
-      nodes = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
+      navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
   when (H.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
         case find (\case
                       NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
                       _ -> False
-                  ) nodes of
+                  ) navis of
           Just (NodeElement (Element _ attrs _)) ->
             case M.lookup "href" attrs of
               Nothing -> return Nothing
