@@ -113,8 +113,6 @@ getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toStr
 -- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
 getDicNicoPage :: String -> IO (H.HashSet Entry)
 getDicNicoPage href = do
-  -- BAN回避のため0.01秒スリープ
-  threadDelay $ 10 * 1000
   response <- do
     response0 <- httpLBS (fromString href)
     if getResponseStatus response0 == status200
