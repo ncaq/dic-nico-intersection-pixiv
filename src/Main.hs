@@ -201,7 +201,7 @@ normalizeWord = replaceSymbol . normalize NFKC
 
 -- | 中黒で三点リーダを表現しようとしているのを変換
 replaceSymbol :: T.Text -> T.Text
-replaceSymbol = T.replace "···" "…"
+replaceSymbol = T.replace "・・・" "…" . T.replace "···" "…"
 
 -- | 辞書に適している単語を抽出する
 dictionaryWord :: H.HashSet Entry -> H.HashSet T.Text -> H.HashSet T.Text -> Entry -> Bool
