@@ -197,11 +197,18 @@ getDicPixiv = do
 
 -- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化する
 normalizeWord :: T.Text -> T.Text
-normalizeWord = replaceSymbol . normalize NFKC
+normalizeWord = replaceEllipsis . normalize NFKC
 
--- | 中黒で三点リーダを表現しようとしているのを変換
-replaceSymbol :: T.Text -> T.Text
-replaceSymbol = T.replace "・・・" "…" . T.replace "···" "…"
+-- | 中黒などで三点リーダを表現しようとしているのを変換
+replaceEllipsis :: T.Text -> T.Text
+replaceEllipsis word =
+  let pseudoEllipsisList
+        = [ "···"
+          , "・・・"
+          , "..."
+          , "．．．"
+          ]
+  in foldr (\pseudoEllipsis acc -> T.replace pseudoEllipsis "…" acc) word pseudoEllipsisList
 
 -- | 辞書に適している単語を抽出する
 dictionaryWord :: H.HashSet Entry -> H.HashSet T.Text -> H.HashSet T.Text -> Entry -> Bool
