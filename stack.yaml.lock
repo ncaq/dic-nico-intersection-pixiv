@@ -12,15 +12,36 @@ packages:
   original:
     hackage: dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
 - completed:
+    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+    pantry-tree:
+      size: 1292
+      sha256: 9cfa13cb040285bf132085f3b75f31cdfad279fe7f31f05e5b20b2a2f9d85aca
+  original:
+    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+- completed:
+    hackage: store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
+    pantry-tree:
+      size: 271
+      sha256: 0db8705011f7f25d9e5f639c52ccce5fccb1de578de685def2b79e289d9de4cc
+  original:
+    hackage: store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
+- completed:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
     pantry-tree:
       size: 542
       sha256: 74233c36098c69ffdeac6fdf578ddf77c6308f6dda900b8c038a3b652768f253
   original:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
+- completed:
+    hackage: th-utilities-0.2.3.1@sha256:40ebb0bc9569b4ff5c3be93c58a1e2a35e308a7e3effc73f6b324980f53f73fc,1869
+    pantry-tree:
+      size: 881
+      sha256: fa8f7a729bb497831a087af6368cc44a52bfdf058c54882a6f5513feb4d36212
+  original:
+    hackage: th-utilities-0.2.3.1@sha256:40ebb0bc9569b4ff5c3be93c58a1e2a35e308a7e3effc73f6b324980f53f73fc,1869
 snapshots:
 - completed:
-    size: 525662
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/15.yaml
-    sha256: c5e673e5723931b64ef2eb5004f6d9ea3c95b58d48388dbc4de6f66b97c81f7a
-  original: lts-14.15
+    size: 491373
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/3.yaml
+    sha256: 29e9ff61b8bf4b4fcff55cde3ac106ebb971f0d21331dccac9eee63374fa6ca8
+  original: lts-15.3

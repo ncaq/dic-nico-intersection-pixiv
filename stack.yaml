@@ -1,4 +1,7 @@
-resolver: lts-14.15
 extra-deps:
   - dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
+  - store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+  - store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
   - text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
+  - th-utilities-0.2.3.1@sha256:40ebb0bc9569b4ff5c3be93c58a1e2a35e308a7e3effc73f6b324980f53f73fc,1869
+resolver: lts-15.3
