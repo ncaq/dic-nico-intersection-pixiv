@@ -65,8 +65,9 @@ main = do
       -- フィルタリング処理関数を生成
       dictionaryFilter = filter dictionaryWordPred
       -- リスト化して並列フィルタリング処理(気休め)
+      dictionaryFiltered = dictionaryFilter (H.toList dicNico) `using` parList rseq
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi (dictionaryFilter (H.toList dicNico)) `using` parList rseq
+      dictionarySorted = sortOn entryYomi dictionaryFiltered
 
   -- 辞書本体をプリント
   mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionarySorted
