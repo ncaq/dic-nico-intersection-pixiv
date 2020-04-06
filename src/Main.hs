@@ -44,7 +44,7 @@ data Entry
   { entryYomi     :: !T.Text
   , entryWord     :: !T.Text
   , entryRedirect :: !Bool
-  } deriving (Eq, Show, Generic)
+  } deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Entry
 instance Store Entry
