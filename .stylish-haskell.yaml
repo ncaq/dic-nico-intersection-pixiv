@@ -15,9 +15,12 @@ steps:
   #     # true.
   #     add_language_pragma: true
 
+  # Format record definitions
+  # - records: {}
+
   # Align the right hand side of some elements.  This is quite conservative
   # and only applies to statements where each element occupies a single
-  # line.
+  # line. All default to true.
   - simple_align:
       cases: true
       top_level_patterns: true
@@ -55,6 +58,18 @@ steps:
       #
       #   > import qualified Data.List      as List (concat, foldl, foldr, head,
       #   >                                 init, last, length)
+      #
+      # - with_module_name: Import list is aligned `list_padding` spaces after
+      #   the module name.
+      #
+      #   > import qualified Data.List      as List (concat, foldl, foldr, head,
+      #                          init, last, length)
+      #
+      #   This is mainly intended for use with `pad_module_names: false`.
+      #
+      #   > import qualified Data.List as List (concat, foldl, foldr, head,
+      #                          init, last, length, scanl, scanr, take, drop,
+      #                          sort, nub)
       #
       # - new_line: Import list starts always on new line.
       #
@@ -126,6 +141,8 @@ steps:
       #
       # - module_name: align under start of module name.
       #   Useful for 'file' and 'group' align settings.
+      #
+      # Default: 4
       list_padding: 4
 
       # Separate lists option affects formatting of import list for type
@@ -189,6 +206,11 @@ steps:
       # is set to true, it will remove those redundant pragmas. Default: true.
       remove_redundant: true
 
+      # Language prefix to be used for pragma declaration, this allows you to
+      # use other options non case-sensitive like "language" or "Language".
+      # If a non correct String is provided, it will default to: LANGUAGE.
+      language_prefix: LANGUAGE
+
   # Replace tabs by spaces. This is disabled by default.
   # - tabs:
   #     # Number of spaces to use for each tab. Default: 8, as specified by the
@@ -203,8 +225,15 @@ steps:
   # simple_align but is a bit less conservative.
   # - squash: {}
 
+# A common indentation setting. Different steps take this into account.
+indent: 2
+
 # A common setting is the number of columns (parts of) code will be wrapped
-# to. Different steps take this into account. Default: 80.
+# to. Different steps take this into account.
+#
+# Set this to null to disable all line wrapping.
+#
+# Default: 80.
 columns: 80
 
 # By default, line endings are converted according to the OS. You can override
@@ -225,5 +254,11 @@ newline: lf
 #
 # No language extensions are enabled by default.
 # language_extensions:
-  # - TemplateHaskell
-  # - QuasiQuotes
+# - TemplateHaskell
+# - QuasiQuotes
+
+# Attempt to find the cabal file in ancestors of the current directory, and
+# parse options (currently only language extensions) from that.
+#
+# Default: true
+cabal: true
