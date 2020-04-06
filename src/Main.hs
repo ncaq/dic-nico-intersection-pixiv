@@ -55,11 +55,7 @@ main = do
   createDirectoryIfMissing False "cache"
 
   dicInfo <- getDicInfo
-  -- ニコニコ大百科とPixiv百科時点は読み込み元が違うので安全に並行で取得できる
-  (dicNico, dicPixiv) <- concurrently getDicNico getDicPixiv
-  -- ニコニコ大百科同士で並列化すると読み込みすぎになりかねないのでこれは単独で読み込む
-  -- キャッシュされている場合もそんなに容量が大きくないのでデシリアライズに時間を使わない
-  dicNicoSpecialYomi <- getDicNicoSpecialYomi
+  (dicNico, (dicNicoSpecialYomi, dicPixiv)) <- getDicNico `concurrently` (getDicNicoSpecialYomi `concurrently` getDicPixiv)
 
   -- 参考情報をプリント
   T.putStrLn dicInfo
@@ -101,7 +97,7 @@ getDicNico = do
     doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/m/a/a"
     let chars = map TL.head $ filter (\text -> TL.length text == 1) $ map innerText $
           queryT [jq|.st-box_contents > table > tr > td > a|] doc
-    dic <- mconcat <$> mapM getDicNicoTitle chars
+    dic <- mconcat <$> mapConcurrently getDicNicoTitle chars
     B.writeFile path $ encode dic
     return dic
 
