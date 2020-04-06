@@ -37,13 +37,13 @@ import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
 
--- | 名前が雑すぎますが
--- これはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
+-- | 記事エントリーを表すデータ構造
+-- 名前が短すぎますが,これはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
 data Entry
   = Entry
-  { entryYomi     :: !T.Text
-  , entryWord     :: !T.Text
-  , entryRedirect :: !Bool
+  { entryYomi     :: !T.Text -- ^ 読み, ひらがなに限定
+  , entryWord     :: !T.Text -- ^ 単語, オリジナルのものがそのまま入ります
+  , entryRedirect :: !Bool   -- ^ 記事がリダイレクトのものかどうか
   } deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Entry
@@ -152,7 +152,7 @@ getDicNicoPage href = do
           _ -> return Nothing
   return $ dic <> fromMaybe H.empty nextDic
 
--- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/a/%E8%AA%AD%E3%81%BF%E3%81%8C%E9%80%9A%E5%B8%B8%E3%81%AE%E8%AA%AD%E3%81%BF%E6%96%B9%E3%81%A8%E3%81%AF%E7%95%B0%E3%81%AA%E3%82%8B%E8%A8%98%E4%BA%8B%E3%81%AE%E4%B8%80%E8%A6%A7)
+-- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
 -- 実は取得が雑で"概要"とかも入ってしまっていますが別に除外されて問題ないので放置しています
@@ -221,15 +221,19 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , T.length entryYomi < T.length entryWord * 6
     -- 読みと単語が違うこと
     -- 読みと単語が一致しているエントリーはサジェストに役立つぐらいですが
-    -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため排除
+    -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため除外
   , entryYomi /= entryWord
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
-    -- マジで?など読みが3文字以下で単語が?で終わるやつは排除
+    -- マジで? など読みが3文字以下で単語が?で終わるやつは除外
   , not (T.length entryYomi <= 3 && T.last entryWord == '?')
-    -- いま!など読みが3文字以下で単語が!で終わるやつは排除
+    -- いま! など読みが3文字以下で単語が!で終わるやつは除外
   , not (T.length entryYomi <= 3 && T.last entryWord == '!')
-    -- 曖昧さ回避などわかりやすい非単語記事ではない
+    -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
+    -- ! で終わる場合などは作品名のことが多いので除外しない
+  , maybe True (\suf -> not (T.null suf || T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
+    T.stripPrefix entryYomi entryWord
+    -- 曖昧さ回避などわかりやすく単語記事ではないものを除外
   , not ("あいまいさ" `T.isInfixOf` entryYomi)
   , not ("一覧" `T.isSuffixOf` entryWord)
   , not ("画像集" `T.isSuffixOf` entryWord)
