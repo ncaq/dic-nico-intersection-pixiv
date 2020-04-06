@@ -129,19 +129,18 @@ getDicNicoPage href = do
       articles = queryT [jq|.article ul ul li|] doc
       texts = map (TL.strip . innerText) articles
       words = map (TL.strip . innerText . queryT [jq|a|]) articles
-      extras = map (\(word, text) -> fromJust $ TL.strip <$> TL.stripPrefix word text) $ zip words texts
-      dic = H.fromList $ map
-            (\(word, extra) ->
-                let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
-                    -- icuで変換
-                    -- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
-                    hiraganaYomi = T.replace "!" "ー" $ transliterate (trans "Katakana-Hiragana") $
-                      T.replace "ー" "!" $ toTextStrict yomi
-                in Entry
-                   { entryWord = normalizeWord $ toTextStrict word
-                   , entryYomi = normalizeWord hiraganaYomi
-                   , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
-                   }) $ zip words extras
+      extras = zipWith (\word text -> fromJust $ TL.strip <$> TL.stripPrefix word text) words texts
+      dic = H.fromList $ zipWith
+            (\word extra ->
+               let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
+                   -- icuで変換, 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
+                   hiraganaYomi = T.replace "!" "ー" $ transliterate (trans "Katakana-Hiragana") $
+                     T.replace "ー" "!" $ toTextStrict yomi
+               in Entry
+                  { entryWord = normalizeWord $ toTextStrict word
+                  , entryYomi = normalizeWord hiraganaYomi
+                  , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
+                  }) words extras
       navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
   when (H.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
