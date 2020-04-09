@@ -70,7 +70,7 @@ main = do
       dictionarySorted = sortOn entryYomi dictionaryFiltered
 
   -- 辞書本体をプリント
-  mapM_ (\Entry{entryYomi, entryWord} -> T.putStrLn $ entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞") dictionarySorted
+  T.putStr $ T.unlines $ toMozcLine <$> dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
 getDicInfo :: IO T.Text
@@ -85,6 +85,10 @@ getDicInfo = do
     , "#nicovideo: https://dic.nicovideo.jp/"
     , "#pixiv: https://dic.pixiv.net/"
     ]
+
+toMozcLine :: Entry -> T.Text
+toMozcLine Entry{entryYomi, entryWord}
+  = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "dic-nico-intersection-pixiv"
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
 -- から単語と読み一覧を取得する
