@@ -88,7 +88,7 @@ getDicInfo = do
 
 toMozcLine :: Entry -> T.Text
 toMozcLine Entry{entryYomi, entryWord}
-  = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "dic-nico-intersection-pixiv"
+  = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "nico-pixiv"
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
 -- から単語と読み一覧を取得する
