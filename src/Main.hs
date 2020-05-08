@@ -216,13 +216,13 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   [ entryWord `H.member` dicPixiv                 -- Pixiv百科時点にも存在する単語のみを使う
   , not (entryWord `H.member` dicNicoSpecialYomi) -- 記事に載っている特殊な読みではない
     -- 読みが異様に短くない
-  , 1 < T.length entryYomi
+  , 1 < yomiLength
     -- 読みが異様に長くない
-  , T.length entryYomi < 25
+  , yomiLength < 25
     -- 単語が読みに比べて異様に長くない
-  , T.length entryWord < T.length entryYomi * 3
+  , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
-  , T.length entryYomi < T.length entryWord * 6
+  , yomiLength < wordLength * 6
     -- 読みと単語が違うこと
     -- 読みと単語が一致しているエントリーはサジェストに役立つぐらいですが
     -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため除外
@@ -230,9 +230,9 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
     -- マジで? など読みが3文字以下で単語が?で終わるやつは除外
-  , not (T.length entryYomi <= 3 && T.last entryWord == '?')
+  , not (yomiLength <= 3 && T.last entryWord == '?')
     -- いま! など読みが3文字以下で単語が!で終わるやつは除外
-  , not (T.length entryYomi <= 3 && T.last entryWord == '!')
+  , not (yomiLength <= 3 && T.last entryWord == '!')
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
     -- ! で終わる場合などは作品名のことが多いので除外しない
   , maybe True (\suf -> not (T.null suf || T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
@@ -266,3 +266,5 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
     H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
                         not otherRedirect && otherYomi == entryYomi) dicNico)
   ]
+  where yomiLength = T.length entryYomi
+        wordLength = T.length entryWord
