@@ -217,8 +217,6 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not (entryWord `H.member` dicNicoSpecialYomi) -- 記事に載っている特殊な読みではない
     -- 読みが異様に短くない
   , 1 < yomiLength
-    -- 読みが異様に長くない
-  , yomiLength < 25
     -- 単語が読みに比べて異様に長くない
   , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
