@@ -12,12 +12,12 @@ packages:
   original:
     hackage: dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
 - completed:
-    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+    hackage: store-0.7.4@sha256:ad89cd2f525bccece875423147d8a1f35cdf7a1fef1eb32a1db896e61848b70a,7825
     pantry-tree:
       size: 1292
-      sha256: 9cfa13cb040285bf132085f3b75f31cdfad279fe7f31f05e5b20b2a2f9d85aca
+      sha256: 1137f5d7e631636ff74cac4d223d6817cb229be99e5db4b555a988463a8ffa80
   original:
-    hackage: store-0.7.2@sha256:94ca07b2af0ee15ee9e71f1576ea630676c3c016788c3dcb19d33d2998c3c228,7825
+    hackage: store-0.7.4@sha256:ad89cd2f525bccece875423147d8a1f35cdf7a1fef1eb32a1db896e61848b70a,7825
 - completed:
     hackage: store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
     pantry-tree:
@@ -33,15 +33,15 @@ packages:
   original:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
 - completed:
-    hackage: th-utilities-0.2.3.1@sha256:40ebb0bc9569b4ff5c3be93c58a1e2a35e308a7e3effc73f6b324980f53f73fc,1869
+    hackage: th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
     pantry-tree:
-      size: 881
-      sha256: fa8f7a729bb497831a087af6368cc44a52bfdf058c54882a6f5513feb4d36212
+      size: 882
+      sha256: 8c577d112a8398a5542aa4205b2e8a470a66d57590e6606d752d71e75d7425ea
   original:
-    hackage: th-utilities-0.2.3.1@sha256:40ebb0bc9569b4ff5c3be93c58a1e2a35e308a7e3effc73f6b324980f53f73fc,1869
+    hackage: th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
 snapshots:
 - completed:
-    size: 491373
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/3.yaml
-    sha256: 29e9ff61b8bf4b4fcff55cde3ac106ebb971f0d21331dccac9eee63374fa6ca8
-  original: lts-15.3
+    size: 494638
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/11.yaml
+    sha256: 5747328cdcbb8fe9c96fc048b5566167c80dd176a41b52d3b363058e3cc1dc5d
+  original: lts-15.11
