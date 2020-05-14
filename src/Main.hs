@@ -243,8 +243,9 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not ("よみかた" `T.isSuffixOf` entryYomi)
   , not ("よみがな" `T.isSuffixOf` entryYomi)
     -- 読みにけものフレンズなど曖昧さ回避を含むと辞書としては使い物にならないので除外
-  , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
   , not ("あずれんの" `T.isPrefixOf` entryYomi)
+  , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
+  , not ("じつざいのじんぶつとはあまりかんけいのない" `T.isPrefixOf` entryYomi)
   , not ("せんごくばさら" `T.isSuffixOf` entryYomi)
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
     -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に｢兄貴｣がついてくるのを防止
