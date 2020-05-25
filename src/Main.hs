@@ -189,7 +189,7 @@ getDicPixiv = do
     sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
       queryT [jq|loc|] sitemap
     let dic = H.fromList $
-          map (normalizeWord . toTextStrict . urlDecode False . toByteStringStrict) $
+          map (normalizeWord . toTextStrict . urlDecode True . toByteStringStrict) $
           mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
           concatMap (map innerText . queryT [jq|loc|]) sitemaps
     B.writeFile path $ encode dic
