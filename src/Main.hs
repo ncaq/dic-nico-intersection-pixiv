@@ -239,6 +239,9 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not ("あいまいさ" `T.isInfixOf` entryYomi)
   , not ("一覧" `T.isSuffixOf` entryWord)
   , not ("画像集" `T.isSuffixOf` entryWord)
+    -- 誕生祭, 生誕祭を除去
+  , not ("誕生祭" `T.isInfixOf` entryWord)
+  , not ("生誕祭" `T.isInfixOf` entryWord)
     -- 読みがなについて読みがなで言及しているものは特殊な読みであることが多いので除外
   , not ("よみかた" `T.isSuffixOf` entryYomi)
   , not ("よみがな" `T.isSuffixOf` entryYomi)
