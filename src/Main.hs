@@ -34,7 +34,6 @@ import           Network.HTTP.Types
 import           Prelude                     hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
-import           Text.Regex.TDFA
 import           Text.XML                    hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
@@ -290,8 +289,6 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("年" `T.isSuffixOf` entryWord)
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
-    -- 何故か動画の番号がタイトルになっている記事を除外 動画記事が無かった時代の風習?
-  , not (entryWord =~ ("^sm[0-9]+$" :: T.Text) :: Bool)
     -- 記事に載っている特殊な読みではない
   , not (entryWord `S.member` dicNicoSpecialYomi)
     -- Pixiv百科時点にも存在する単語のみを使う

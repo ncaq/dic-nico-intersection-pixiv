@@ -41,7 +41,6 @@ dependencies:
   - http-conduit
   - http-types
   - parallel
-  - regex-tdfa
   - store
   - string-transform
   - text
