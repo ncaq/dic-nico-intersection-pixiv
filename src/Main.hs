@@ -52,18 +52,30 @@ data Entry
 instance Hashable Entry
 instance Store Entry
 
+-- | 辞書を得て標準出力にプリントアウトする
 main :: IO ()
 main = do
   -- キャッシュディレクトリがなければ作成する
   createDirectoryIfMissing False "cache"
 
   dicInfo <- getDicInfo
-  (dicNico, (dicNicoSpecialYomi, dicPixiv)) <- getDicNico `concurrently` (getDicNicoSpecialYomi `concurrently` getDicPixiv)
+  dictionary <- getDictionary
 
   -- 参考情報をプリント
   T.putStrLn dicInfo
 
-      -- ghciでのデバッグを楽にするために部分適用
+  -- 辞書本体をプリント
+  T.putStr $ T.unlines $ toMozcLine <$> dictionary
+
+-- | エントリー1つをMozcの辞書データ1行に変換する
+toMozcLine :: Entry -> T.Text
+toMozcLine Entry{entryYomi, entryWord} = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "nico-pixiv"
+
+-- | 辞書(エントリーの列)を得る
+getDictionary :: IO [Entry]
+getDictionary = do
+  (dicNico, (dicNicoSpecialYomi, dicPixiv)) <- getDicNico `concurrently` (getDicNicoSpecialYomi `concurrently` getDicPixiv)
+  -- ghciでのデバッグを楽にするために部分適用
   let dictionaryWordPred = dictionaryWord dicNicoSpecialYomi dicPixiv
       -- リスト化して1段階目のフィルタを通す
       dictionaryFiltered = filter dictionaryWordPred (S.toList dicNico) `using` parList rseq
@@ -73,9 +85,7 @@ main = do
       dicFinalFiltered = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
       -- HashSetは順番バラバラなので最終的にソートする
       dictionarySorted = sortOn entryYomi dicFinalFiltered
-
-  -- 辞書本体をプリント
-  T.putStr $ T.unlines $ toMozcLine <$> dictionarySorted
+  return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
 getDicInfo :: IO T.Text
@@ -90,10 +100,6 @@ getDicInfo = do
     , "#nicovideo: https://dic.nicovideo.jp/"
     , "#pixiv: https://dic.pixiv.net/"
     ]
-
-toMozcLine :: Entry -> T.Text
-toMozcLine Entry{entryYomi, entryWord}
-  = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "nico-pixiv"
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
 -- から単語と読み一覧を取得する
