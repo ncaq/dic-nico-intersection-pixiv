@@ -12,9 +12,10 @@ import           Control.Parallel.Strategies
 import qualified Data.ByteString             as B
 import           Data.Char
 import           Data.Hashable
-import qualified Data.HashSet                as H
+import qualified Data.HashMap.Strict         as M
+import qualified Data.HashSet                as S
 import           Data.List                   hiding (words)
-import qualified Data.Map.Strict             as M
+import qualified Data.Map.Strict             as OM
 import           Data.Maybe
 import           Data.Store
 import           Data.String                 hiding (words)
@@ -23,6 +24,7 @@ import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
 import qualified Data.Text.IO                as T
 import qualified Data.Text.Lazy              as TL
+import           Data.Text.Metrics
 import           Data.Text.Normalize
 import           Data.Time.Format
 import           Data.Time.LocalTime
@@ -32,6 +34,7 @@ import           Network.HTTP.Types
 import           Prelude                     hiding (words)
 import           System.Directory
 import           Text.HTML.DOM
+import           Text.Regex.TDFA
 import           Text.XML                    hiding (parseLBS)
 import           Text.XML.Cursor
 import           Text.XML.Scraping
@@ -43,7 +46,7 @@ data Entry
   = Entry
   { entryYomi     :: !T.Text -- ^ 読み, ひらがなに限定
   , entryWord     :: !T.Text -- ^ 単語, オリジナルのものがそのまま入ります
-  , entryRedirect :: !Bool   -- ^ 記事がリダイレクトのものかどうか
+  , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
   } deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Entry
@@ -60,14 +63,16 @@ main = do
   -- 参考情報をプリント
   T.putStrLn dicInfo
 
-      -- 最適化がかかることを期待するのとghciでのデバッグを楽にするために部分適用
-  let dictionaryWordPred = dictionaryWord dicNico dicNicoSpecialYomi dicPixiv
-      -- フィルタリング処理関数を生成
-      dictionaryFilter = filter dictionaryWordPred
-      -- リスト化して並列フィルタリング処理(気休め)
-      dictionaryFiltered = dictionaryFilter (H.toList dicNico) `using` parList rseq
+      -- ghciでのデバッグを楽にするために部分適用
+  let dictionaryWordPred = dictionaryWord dicNicoSpecialYomi dicPixiv
+      -- リスト化して1段階目のフィルタを通す
+      dictionaryFiltered = filter dictionaryWordPred (S.toList dicNico) `using` parList rseq
+      -- 読みがなキーマップ作成
+      dicNicoYomiMap = mkDicNicoYomiMapNonRedirect dictionaryFiltered
+      -- 誤変換指摘除外フィルタをかける
+      dicFinalFiltered = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi dictionaryFiltered
+      dictionarySorted = sortOn entryYomi dicFinalFiltered
 
   -- 辞書本体をプリント
   T.putStr $ T.unlines $ toMozcLine <$> dictionarySorted
@@ -92,7 +97,7 @@ toMozcLine Entry{entryYomi, entryWord}
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
 -- から単語と読み一覧を取得する
-getDicNico :: IO (H.HashSet Entry)
+getDicNico :: IO (S.HashSet Entry)
 getDicNico = do
   let path = "cache/jp-nicovideo-dic"
   exist <- doesFileExist path
@@ -108,11 +113,11 @@ getDicNico = do
 
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
 -- のような記事からページャを辿って再帰的にデータを取得する
-getDicNicoTitle :: Char -> IO (H.HashSet Entry)
+getDicNicoTitle :: Char -> IO (S.HashSet Entry)
 getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toString (urlEncode False (toByteStringStrict [c]))
 
 -- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
-getDicNicoPage :: String -> IO (H.HashSet Entry)
+getDicNicoPage :: String -> IO (S.HashSet Entry)
 getDicNicoPage href = do
   response <- do
     response0 <- httpLBS (fromString href)
@@ -131,7 +136,7 @@ getDicNicoPage href = do
       texts = map (TL.strip . innerText) articles
       words = map (TL.strip . innerText . queryT [jq|a|]) articles
       extras = zipWith (\word text -> fromJust $ TL.strip <$> TL.stripPrefix word text) words texts
-      dic = H.fromList $ zipWith
+      dic = S.fromList $ zipWith
             (\word extra ->
                let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
                    -- icuで変換, 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
@@ -143,24 +148,24 @@ getDicNicoPage href = do
                   , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
                   }) words extras
       navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
-  when (H.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
+  when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
         case find (\case
                       NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
                       _ -> False
                   ) navis of
           Just (NodeElement (Element _ attrs _)) ->
-            case M.lookup "href" attrs of
+            case OM.lookup "href" attrs of
               Nothing -> return Nothing
               Just newHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString newHref)
           _ -> return Nothing
-  return $ dic <> fromMaybe H.empty nextDic
+  return $ dic <> fromMaybe S.empty nextDic
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
 -- 実は取得が雑で"概要"とかも入ってしまっていますが別に除外されて問題ないので放置しています
-getDicNicoSpecialYomi :: IO (H.HashSet T.Text)
+getDicNicoSpecialYomi :: IO (S.HashSet T.Text)
 getDicNicoSpecialYomi = do
   let path = "cache/jp-nicovideo-dic-id-4652210"
   exist <- doesFileExist path
@@ -172,13 +177,14 @@ getDicNicoSpecialYomi = do
     when (getResponseStatus response /= status200) $
       error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response
     let doc = fromDocument $ parseLBS $ getResponseBody response
-        dic = H.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
+        dic = S.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
               queryT [jq|#article ul li|] doc
     B.writeFile path $ encode dic
     return dic
 
--- | Pixiv百科時点のサイトマップから記事一覧データを取得する
-getDicPixiv :: IO (H.HashSet T.Text)
+-- | Pixiv百科時点のサイトマップから記事一覧データを取得します
+-- toFuzzyによって曖昧になっています
+getDicPixiv :: IO (S.HashSet T.Text)
 getDicPixiv = do
   let path = "cache/net-pixiv-dic"
   exist <- doesFileExist path
@@ -188,8 +194,8 @@ getDicPixiv = do
     sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap/"
     sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
       queryT [jq|loc|] sitemap
-    let dic = H.fromList $
-          map (normalizeWord . toTextStrict . urlDecode True . toByteStringStrict) $
+    let dic = S.fromList $
+          map (toFuzzy . normalizeWord . toTextStrict . urlDecode True . toByteStringStrict) $
           mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
           concatMap (map innerText . queryT [jq|loc|]) sitemaps
     B.writeFile path $ encode dic
@@ -210,18 +216,33 @@ replaceEllipsis word =
           ]
   in foldr (\pseudoEllipsis acc -> T.replace pseudoEllipsis "…" acc) word pseudoEllipsisList
 
--- | 辞書に適している単語を抽出する
-dictionaryWord :: H.HashSet Entry -> H.HashSet T.Text -> H.HashSet T.Text -> Entry -> Bool
-dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, entryRedirect} = and
-  [ entryWord `H.member` dicPixiv                 -- Pixiv百科時点にも存在する単語のみを使う
-  , not (entryWord `H.member` dicNicoSpecialYomi) -- 記事に載っている特殊な読みではない
+-- | 単語を曖昧比較します
+-- toFuzzyに加え編集距離を考慮します
+fuzzyEqual :: T.Text -> T.Text -> Bool
+fuzzyEqual x y = toFuzzy x == toFuzzy y || levenshtein x y <= 2
+
+-- | 単語を大雑把に正規化します
+toFuzzy :: T.Text -> T.Text
+toFuzzy w =
+  -- 記号が大半を占める単語は記号を除かない
+  let dropNotLetter = T.filter isLetter w
+      useWord = if T.length w == 0 -- ゼロ除算回避
+        then w
+        else if (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Rational)
+        then w
+        else dropNotLetter
+  in T.toCaseFold $ transliterate (trans "Katakana-Hiragana") useWord
+
+-- | 辞書に適している単語を抽出する(1段階目), リダイレクト関係は考慮しない
+dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
+dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 読みが異様に短くない
-  , 1 < yomiLength
+  [ 1 < yomiLength
     -- 単語が読みに比べて異様に長くない
   , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
   , yomiLength < wordLength * 6
-    -- 読みと単語が違うこと
+    -- 読みと単語が違う
     -- 読みと単語が一致しているエントリーはサジェストに役立つぐらいですが
     -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため除外
   , entryYomi /= entryWord
@@ -265,11 +286,32 @@ dictionaryWord dicNico dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord, e
   , not ("年" `T.isSuffixOf` entryWord)
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
-    -- 誤変換指摘対策
-    -- 同一読みのリダイレクトではない記事が他に存在するリダイレクト項目は除外します
-  , not entryRedirect ||
-    H.null (H.filter (\Entry{entryYomi = otherYomi, entryRedirect = otherRedirect} ->
-                        not otherRedirect && otherYomi == entryYomi) dicNico)
+    -- 何故か動画の番号がタイトルになっている記事を除外 動画記事が無かった時代の風習?
+  , not (entryWord =~ ("^sm\\d+$" :: T.Text) :: Bool)
+    -- 記事に載っている特殊な読みではない
+  , not (entryWord `S.member` dicNicoSpecialYomi)
+    -- Pixiv百科時点にも存在する単語のみを使う
+  , toFuzzy entryWord `S.member` dicPixiv
   ]
   where yomiLength = T.length entryYomi
         wordLength = T.length entryWord
+
+-- | 誤変換指摘対策
+-- リダイレクト記事であり
+-- 元の記事の読みと同一であるか単語が曖昧的に一致するリダイレクト記事ではない記事が存在する場合
+-- 誤変換の指摘であることが多いため除外します
+-- ニコニコ大百科のページ一覧からはリダイレクトであることは読み取れますがリダイレクト先の記事が何かが分からないので
+-- 単純に読みだけを見ると
+-- 妖夢 → ヨウムが誤変換指摘と認識されてしまいます
+-- しかし全てのリダイレクト記事を許可してしまうと表記揺れで単語数が膨らんでしまうので
+-- ファジーマッチによってリダイレクト先を妥協予測します
+notMisconversion :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
+notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect}
+  = not entryRedirect
+  || fromMaybe True (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap)
+
+-- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
+mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
+mkDicNicoYomiMapNonRedirect dictionaryFiltered
+  = M.fromListWith (<>)
+  [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]

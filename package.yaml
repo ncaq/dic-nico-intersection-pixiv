@@ -41,10 +41,12 @@ dependencies:
   - http-conduit
   - http-types
   - parallel
+  - regex-tdfa
   - store
   - string-transform
   - text
   - text-icu-translit
+  - text-metrics
   - time
   - unicode-transforms
   - unordered-containers
