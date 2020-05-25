@@ -232,9 +232,7 @@ toFuzzy :: T.Text -> T.Text
 toFuzzy w =
   -- 記号が大半を占める単語は記号を除かない
   let dropNotLetter = T.filter isLetter w
-      useWord = if T.length w == 0 -- ゼロ除算回避
-        then w
-        else if (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Rational)
+      useWord = if T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Rational)
         then w
         else dropNotLetter
   in T.toCaseFold $ transliterate (trans "Katakana-Hiragana") useWord
