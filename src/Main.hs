@@ -5,6 +5,7 @@
 {-# LANGUAGE QuasiQuotes       #-}
 module Main where
 
+import           Control.Applicative
 import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
@@ -309,9 +310,16 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
   , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
     -- 1月1日 のような単語はあっても辞書として意味がなく容量を食うだけなので除外
+    -- 本当はパーサーコンビネータで真面目に処理したいのですが漢数字や毎月とかの処理が面倒な割に利益が無かったのでやめました
   , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
-    -- 年号だけの記事を除外
-  , not ("年" `T.isSuffixOf` entryWord)
+    -- 年を示す単語で始まるのは連番記事であることが多いし変換やサジェストの役にも立たないので除外
+    -- ただ 3年B組金八先生 などがあるため2桁以上要求する
+  , isLeft $ parseOnly (count 2 digit *> many' digit *> char '年') entryWord
+    -- 元号も現代のものは除外
+  , isLeft $ parseOnly
+    ((string "明治" <|> string "大正" <|> string "昭和" <|> string "平成" <|> string "令和") *>
+     many1 digit *> char '年')
+    entryWord
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
     -- 定義済みの特殊な読みではない
