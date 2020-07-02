@@ -259,10 +259,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , entryYomi /= entryWord
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
-    -- マジで? など読みが4文字以下で単語が?で終わるやつは除外
-  , not (yomiLength <= 4 && T.last entryWord == '?')
-    -- いま! など読みが4文字以下で単語が!で終わるやつは除外
-  , not (yomiLength <= 4 && T.last entryWord == '!')
+    -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
+  , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
     -- ! で終わる場合などは作品名のことが多いので除外しない
   , maybe True (\suf -> not (T.null suf || T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
