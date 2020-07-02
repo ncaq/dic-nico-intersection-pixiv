@@ -274,6 +274,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 誕生祭, 生誕祭を除去
   , not ("誕生祭" `T.isInfixOf` entryWord)
   , not ("生誕祭" `T.isInfixOf` entryWord)
+    -- オリジナル曲タグを除去
+  , not ("オリジナル曲" `T.isSuffixOf` entryWord)
     -- 読みがなについて読みがなで言及しているものは特殊な読みであることが多いので除外
   , not ("よみかた" `T.isSuffixOf` entryYomi)
   , not ("よみがな" `T.isSuffixOf` entryYomi)
