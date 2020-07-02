@@ -286,6 +286,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("しゃいにんぐなんばーず" `T.isPrefixOf` entryYomi)
   , not ("なんばーず" `T.isPrefixOf` entryYomi)
   , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
+    -- 大事なことなので系統が多すぎるので除外
+  , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
     -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
