@@ -236,6 +236,8 @@ toFuzzy w =
       useDropNotLetter = and
         -- 記号が大半を占める単語は記号を除かない
         [ not $ T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Double)
+        -- 消去した記号がプレフィクスだけの場合は無効
+        , not $ dropNotLetter `T.isSuffixOf` w
         -- 消去した記号がサフィックスだけの場合は無効
         , not $ dropNotLetter `T.isPrefixOf` w
         ]
