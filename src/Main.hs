@@ -280,6 +280,12 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
   , not ("じつざいのじんぶつとはあまりかんけいのない" `T.isPrefixOf` entryYomi)
   , not ("せんごくばさら" `T.isSuffixOf` entryYomi)
+    -- 特定の遊戯王カードを除外. 何故ならば読みがなが なんばーず とかで始まるのは変換の役には立たないため
+  , not ("かおすいまじなりーなんばーず" `T.isPrefixOf` entryYomi)
+  , not ("かおすなんばーず" `T.isPrefixOf` entryYomi)
+  , not ("しゃいにんぐなんばーず" `T.isPrefixOf` entryYomi)
+  , not ("なんばーず" `T.isPrefixOf` entryYomi)
+  , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
     -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
