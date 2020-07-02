@@ -23,6 +23,7 @@ import           Data.Store
 import           Data.String
 import           Data.String.Transform
 import qualified Data.Text                   as T
+import           Data.Text.ICU.Char
 import           Data.Text.ICU.Translit
 import qualified Data.Text.IO                as T
 import qualified Data.Text.Lazy              as TL
@@ -146,9 +147,7 @@ getDicNicoPage href = do
       dic = S.fromList $ zipWith
             (\word extra ->
                let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
-                   -- icuで変換, 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
-                   hiraganaYomi = T.replace "!" "ー" $ transliterate (trans "Katakana-Hiragana") $
-                     T.replace "ー" "!" $ toTextStrict yomi
+                   hiraganaYomi = katakanaToHiragana $ toTextStrict yomi
                in Entry
                   { entryWord = normalizeWord $ toTextStrict word
                   , entryYomi = normalizeWord hiraganaYomi
@@ -167,6 +166,13 @@ getDicNicoPage href = do
               Just newHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString newHref)
           _ -> return Nothing
   return $ dic <> fromMaybe S.empty nextDic
+
+-- | カタカナをひらがなに変換
+-- 長音記号を変換しない
+-- icuで変換
+-- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
+katakanaToHiragana :: T.Text -> T.Text
+katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
@@ -242,7 +248,7 @@ toFuzzy w =
         , not $ dropNotLetter `T.isPrefixOf` w
         ]
       useWord = if useDropNotLetter then dropNotLetter else w
-  in T.toCaseFold $ transliterate (trans "Katakana-Hiragana") useWord
+  in T.toCaseFold $ katakanaToHiragana useWord
 
 -- | 辞書に適している単語を抽出する(1段階目), リダイレクト関係は考慮しない
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
@@ -253,17 +259,13 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
   , yomiLength < wordLength * 6
-    -- 読みと単語が違う
-    -- 読みと単語が一致しているエントリーはサジェストに役立つぐらいですが
-    -- 一致しているのは短いものばかりなのでサジェストにすら役に立たないので辞書容量のため除外
-  , entryYomi /= entryWord
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
     -- ! で終わる場合などは作品名のことが多いので除外しない
-  , maybe True (\suf -> not (T.null suf || T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
+  , maybe True (\suf -> T.null suf || not (T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
     T.stripPrefix entryYomi entryWord
     -- 曖昧さ回避などわかりやすく単語記事ではないものを除外
   , not ("あいまいさ" `T.isInfixOf` entryYomi)
@@ -331,8 +333,12 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
 -- ファジーマッチによってリダイレクト先を妥協予測します
 notMisconversion :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
 notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect}
+  -- リダイレクトではなければ無条件で問題ない
   = not entryRedirect
-  || fromMaybe True (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap)
+  -- ひらがなのみの場合漢字を溶かしたものである可能性が高いので除外
+  || (not (T.all ((== Hiragana) . blockCode) entryWord)
+     -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
+      && fromMaybe True (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
 
 -- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
 mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
