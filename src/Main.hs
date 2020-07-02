@@ -277,7 +277,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("じつざいのじんぶつとはあまりかんけいのない" `T.isPrefixOf` entryYomi)
   , not ("せんごくばさら" `T.isSuffixOf` entryYomi)
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
-    -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に｢兄貴｣がついてくるのを防止
+    -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
   , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryYomi)
     -- 記事名にその単語を含まないのにも関らず読みでそれを表現しようとしている記事を除外
@@ -287,7 +287,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
   , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
-    -- ｢1月1日｣のような単語はあっても辞書として意味がなく容量を食うだけなので除外
+    -- 1月1日 のような単語はあっても辞書として意味がなく容量を食うだけなので除外
   , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
     -- 年号だけの記事を除外
   , not ("年" `T.isSuffixOf` entryWord)
