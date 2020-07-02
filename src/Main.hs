@@ -231,11 +231,15 @@ fuzzyEqual x y = toFuzzy x == toFuzzy y || levenshtein x y <= 2
 -- | 単語を大雑把に量子化します
 toFuzzy :: T.Text -> T.Text
 toFuzzy w =
-  -- 記号が大半を占める単語は記号を除かない
-  let dropNotLetter = T.filter isLetter w
-      useWord = if T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Rational)
-        then w
-        else dropNotLetter
+  let dropNotLetter = T.filter (\c -> isLetter c || isDigit c) w
+      -- 単語から記号を消去するか?
+      useDropNotLetter = and
+        -- 記号が大半を占める単語は記号を除かない
+        [ not $ T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Double)
+        -- 消去した記号がサフィックスだけの場合は無効
+        , not $ dropNotLetter `T.isPrefixOf` w
+        ]
+      useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ transliterate (trans "Katakana-Hiragana") useWord
 
 -- | 辞書に適している単語を抽出する(1段階目), リダイレクト関係は考慮しない
