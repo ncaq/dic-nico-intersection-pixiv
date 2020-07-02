@@ -14,11 +14,11 @@ import           Data.Char
 import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
-import           Data.List                   hiding (words)
+import           Data.List
 import qualified Data.Map.Strict             as OM
-import           Data.Maybe
+import           Data.Maybe                  (fromJust, fromMaybe, mapMaybe)
 import           Data.Store
-import           Data.String                 hiding (words)
+import           Data.String
 import           Data.String.Transform
 import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
@@ -31,7 +31,7 @@ import           Data.Time.LocalTime
 import           GHC.Generics                (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Prelude                     hiding (words)
+import           Prelude
 import           System.Directory
 import           Text.HTML.DOM
 import           Text.XML                    hiding (parseLBS)
@@ -138,9 +138,9 @@ getDicNicoPage href = do
       return response1
   let doc = fromDocument $ parseLBS $ getResponseBody response
       articles = queryT [jq|.article ul ul li|] doc
-      texts = map (TL.strip . innerText) articles
-      words = map (TL.strip . innerText . queryT [jq|a|]) articles
-      extras = zipWith (\word text -> fromJust $ TL.strip <$> TL.stripPrefix word text) words texts
+      ts = map (TL.strip . innerText) articles
+      ws = map (TL.strip . innerText . queryT [jq|a|]) articles
+      extras = zipWith (\word text -> fromJust $ TL.strip <$> TL.stripPrefix word text) ws ts
       dic = S.fromList $ zipWith
             (\word extra ->
                let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
@@ -151,7 +151,7 @@ getDicNicoPage href = do
                   { entryWord = normalizeWord $ toTextStrict word
                   , entryYomi = normalizeWord hiraganaYomi
                   , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
-                  }) words extras
+                  }) ws extras
       navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
   when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
