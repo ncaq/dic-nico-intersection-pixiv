@@ -9,8 +9,10 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
 import           Control.Parallel.Strategies
+import           Data.Attoparsec.Text
 import qualified Data.ByteString             as B
 import           Data.Char
+import           Data.Either                 (isLeft)
 import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
@@ -283,6 +285,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
   , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
+    -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
+  , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
     -- ｢1月1日｣のような単語はあっても辞書として意味がなく容量を食うだけなので除外
   , not ("月" `T.isInfixOf` entryWord && "日" `T.isSuffixOf` entryWord)
     -- 年号だけの記事を除外
