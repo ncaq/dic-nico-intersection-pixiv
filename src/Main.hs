@@ -290,6 +290,9 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("しゃいにんぐなんばーず" `T.isPrefixOf` entryYomi)
   , not ("なんばーず" `T.isPrefixOf` entryYomi)
   , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
+    -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
+    -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
+  , isLeft $ parseOnly (string "SCP-") entryWord
     -- 大事なことなので系統が多すぎるので除外
   , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
