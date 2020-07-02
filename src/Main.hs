@@ -271,14 +271,23 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("あいまいさ" `T.isInfixOf` entryYomi)
   , not ("一覧" `T.isSuffixOf` entryWord)
   , not ("画像集" `T.isSuffixOf` entryWord)
+    -- 読みがなについて読みがなで言及しているものは特殊な読みであることが多いので除外
+  , not ("よみかた" `T.isSuffixOf` entryYomi)
+  , not ("よみがな" `T.isSuffixOf` entryYomi)
+    -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
+    -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
+  , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
+  , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryYomi)
+    -- 記事名にその単語を含まないのにも関らず読みでそれを表現しようとしている記事を除外
+  , not (not ("実況" `T.isInfixOf` entryWord) && "じっきょう" `T.isInfixOf` entryYomi)
+  , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
+  , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
+  , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- 誕生祭, 生誕祭を除去
   , not ("誕生祭" `T.isInfixOf` entryWord)
   , not ("生誕祭" `T.isInfixOf` entryWord)
     -- オリジナル曲タグを除去
   , not ("オリジナル曲" `T.isSuffixOf` entryWord)
-    -- 読みがなについて読みがなで言及しているものは特殊な読みであることが多いので除外
-  , not ("よみかた" `T.isSuffixOf` entryYomi)
-  , not ("よみがな" `T.isSuffixOf` entryYomi)
     -- 読みにけものフレンズなど曖昧さ回避を含むと辞書としては使い物にならないので除外
   , not ("あずれんの" `T.isPrefixOf` entryYomi)
   , not ("けものふれんずの" `T.isPrefixOf` entryYomi)
@@ -290,20 +299,11 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("しゃいにんぐなんばーず" `T.isPrefixOf` entryYomi)
   , not ("なんばーず" `T.isPrefixOf` entryYomi)
   , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
+    -- 大事なことなので系統が多すぎるので除外
+  , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
     -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
     -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
   , isLeft $ parseOnly (string "SCP-") entryWord
-    -- 大事なことなので系統が多すぎるので除外
-  , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
-    -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
-    -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
-  , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
-  , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryYomi)
-    -- 記事名にその単語を含まないのにも関らず読みでそれを表現しようとしている記事を除外
-  , not (not ("実況" `T.isInfixOf` entryWord) && "じっきょう" `T.isInfixOf` entryYomi)
-  , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
-  , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
-  , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
   , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
     -- 1月1日 のような単語はあっても辞書として意味がなく容量を食うだけなので除外
@@ -312,7 +312,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("年" `T.isSuffixOf` entryWord)
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
-    -- 記事に載っている特殊な読みではない
+    -- 定義済みの特殊な読みではない
   , not (entryWord `S.member` dicNicoSpecialYomi)
     -- Pixiv百科時点にも存在する単語のみを使う
   , toFuzzy entryWord `S.member` dicPixiv
