@@ -228,7 +228,7 @@ replaceEllipsis word =
 fuzzyEqual :: T.Text -> T.Text -> Bool
 fuzzyEqual x y = toFuzzy x == toFuzzy y || levenshtein x y <= 2
 
--- | 単語を大雑把に正規化します
+-- | 単語を大雑把に量子化します
 toFuzzy :: T.Text -> T.Text
 toFuzzy w =
   -- 記号が大半を占める単語は記号を除かない
