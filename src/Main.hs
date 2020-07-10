@@ -289,6 +289,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
     -- ※ で始まる記事は変換には使いづらい
   , not ("※" `T.isPrefixOf` entryWord)
+    -- 制御文字による偽装タグを除去
+  , T.all (/= '\803') entryWord
     -- 誕生祭, 生誕祭を除去
   , not ("誕生祭" `T.isInfixOf` entryWord)
   , not ("生誕祭" `T.isInfixOf` entryWord)
