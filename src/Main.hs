@@ -187,9 +187,7 @@ toUpHiragana word =
   let lower = ['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゃ', 'ゅ', 'ょ', 'ゎ', 'ゕ', 'ゖ']
       upper = ['あ', 'い', 'う', 'え', 'お', 'つ', 'や', 'ゆ', 'よ', 'わ', 'か', 'け']
       lowerUpper = M.fromList $ zip lower upper
-  in T.map (\c -> case M.lookup c lowerUpper of
-               Nothing -> c
-               Just k  -> k) word
+  in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) word
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
@@ -244,7 +242,7 @@ replaceEllipsis word =
           , "..."
           , "．．．"
           ]
-  in foldr (\pseudoEllipsis acc -> T.replace pseudoEllipsis "…" acc) word pseudoEllipsisList
+  in foldr (`T.replace` "…") word pseudoEllipsisList
 
 -- | 単語を曖昧比較します
 -- toFuzzyに加え編集距離を考慮します
@@ -256,14 +254,13 @@ toFuzzy :: T.Text -> T.Text
 toFuzzy w =
   let dropNotLetter = T.filter (\c -> isLetter c || isDigit c) w
       -- 単語から記号を消去するか?
-      useDropNotLetter = and
+      useDropNotLetter =
         -- 記号が大半を占める単語は記号を除かない
-        [ not $ T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Double)
+        not (T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Double)) &&
         -- 消去した記号がプレフィクスだけの場合は無効
-        , not $ dropNotLetter `T.isSuffixOf` w
+        not (dropNotLetter `T.isSuffixOf` w) &&
         -- 消去した記号がサフィックスだけの場合は無効
-        , not $ dropNotLetter `T.isPrefixOf` w
-        ]
+        not (dropNotLetter `T.isPrefixOf` w)
       useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ katakanaToHiragana useWord
 
@@ -372,7 +369,7 @@ notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect}
   -- ひらがなのみの場合漢字を溶かしたものである可能性が高いので除外
   || (not (T.all ((== Hiragana) . blockCode) entryWord)
      -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
-      && fromMaybe True (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
+      && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
 
 -- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
 mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
