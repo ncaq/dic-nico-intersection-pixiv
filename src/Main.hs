@@ -175,6 +175,22 @@ getDicNicoPage href = do
 katakanaToHiragana :: T.Text -> T.Text
 katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
 
+-- | ICUのblockCodeは純粋関数なのに例外を出すので自前実装
+isKatakana :: Char -> Bool
+isKatakana c =
+  let o = ord c
+  in 0x30A1 < o && o < 0x30FA
+
+-- | ひらがなの捨て仮名を普通のかなにする
+toUpHiragana :: T.Text -> T.Text
+toUpHiragana word =
+  let lower = ['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゃ', 'ゅ', 'ょ', 'ゎ', 'ゕ', 'ゖ']
+      upper = ['あ', 'い', 'う', 'え', 'お', 'つ', 'や', 'ゆ', 'よ', 'わ', 'か', 'け']
+      lowerUpper = M.fromList $ zip lower upper
+  in T.map (\c -> case M.lookup c lowerUpper of
+               Nothing -> c
+               Just k  -> k) word
+
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
@@ -262,6 +278,11 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , yomiLength < wordLength * 6
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
+    -- 単語が全てカタカナである場合
+    -- ひらがなにして読みと一致する場合のみ許可
+    -- 全てカナカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
+    -- 大文字小文字の揺れは許容
+  , T.any (not . isKatakana) entryWord || toUpHiragana (katakanaToHiragana entryWord) == toUpHiragana entryYomi
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外

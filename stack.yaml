@@ -4,4 +4,4 @@ extra-deps:
   - store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
   - text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
   - th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
-resolver: lts-15.11
+resolver: lts-16.7

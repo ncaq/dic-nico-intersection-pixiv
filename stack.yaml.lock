@@ -41,7 +41,7 @@ packages:
     hackage: th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
 snapshots:
 - completed:
-    size: 494638
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/15/11.yaml
-    sha256: 5747328cdcbb8fe9c96fc048b5566167c80dd176a41b52d3b363058e3cc1dc5d
-  original: lts-15.11
+    size: 531932
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/7.yaml
+    sha256: 96ceeddd4fd68b2d430f7695a12eadefee760b7034c88c75d99d0f380f483068
+  original: lts-16.7
