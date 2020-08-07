@@ -343,6 +343,10 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     ((string "明治" <|> string "大正" <|> string "昭和" <|> string "平成" <|> string "令和") *>
      many1 digit *> char '年')
     entryWord
+    -- HOT7000系みたいなラテン数文字と数字だけのエントリーは直接打ったほうが速いので除外
+  , isLeft $ parseOnly
+    (skipMany1 (satisfy isAscii) *> (char '系' <|> char '形') *> endOfInput)
+    entryWord
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
     -- 定義済みの特殊な読みではない
