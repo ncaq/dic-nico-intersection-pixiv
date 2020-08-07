@@ -87,7 +87,7 @@ getDictionary = do
       -- 誤変換指摘除外フィルタをかける
       dicFinalFiltered = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi dicFinalFiltered
+      dictionarySorted = sortOn entryYomi $ sortOn entryWord dicFinalFiltered
   return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
