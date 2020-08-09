@@ -333,6 +333,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
     -- 大事なことなので系統が多すぎるので除外
   , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
+    -- コミックマーケットの列挙除外
+  , isLeft $ parseOnly (string "コミックマーケット" *> many1 digit) entryWord
     -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
     -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
   , isLeft $ parseOnly (string "SCP-") entryWord
