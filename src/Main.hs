@@ -279,7 +279,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- ひらがなにして読みと一致する場合のみ許可
     -- 全てカナカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
     -- 大文字小文字の揺れは許容
-  , T.any (not . isKatakana) entryWord || toUpHiragana (katakanaToHiragana entryWord) == toUpHiragana entryYomi
+  , not (T.all isKatakana entryWord) || toUpHiragana (katakanaToHiragana entryWord) == toUpHiragana entryYomi
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
