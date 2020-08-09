@@ -247,7 +247,7 @@ replaceEllipsis word =
 -- | 単語を曖昧比較します
 -- toFuzzyに加え編集距離を考慮します
 fuzzyEqual :: T.Text -> T.Text -> Bool
-fuzzyEqual x y = toFuzzy x == toFuzzy y || levenshtein x y <= 2
+fuzzyEqual x y = levenshtein (toFuzzy x) (toFuzzy y) <= 2
 
 -- | 単語を大雑把に量子化します
 toFuzzy :: T.Text -> T.Text
