@@ -275,6 +275,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , yomiLength < wordLength * 6
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
+  , T.all ('〔' /=) entryWord
     -- 単語が全てカタカナである場合
     -- ひらがなにして読みと一致する場合のみ許可
     -- 全てカナカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
