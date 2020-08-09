@@ -276,6 +276,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
   , T.all ('〔' /=) entryWord
+    -- 全てAsciiアルファベットで3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
+  , not (T.all (\c -> isDigit c || isAsciiUpper c || isAsciiLower c) entryWord && wordLength <= 3)
     -- 単語が全てカタカナである場合
     -- ひらがなにして読みと一致する場合のみ許可
     -- 全てカナカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
@@ -347,7 +349,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     ((string "明治" <|> string "大正" <|> string "昭和" <|> string "平成" <|> string "令和") *>
      many1 digit *> char '年')
     entryWord
-    -- HOT7000系みたいなラテン数文字と数字だけのエントリーは直接打ったほうが速いので除外
+    -- HOT7000系みたいな英数字と数字だけのエントリーは直接打ったほうが速いので除外
   , isLeft $ parseOnly
     (skipMany1 (satisfy isAscii) *> (char '系' <|> char '形') *> endOfInput)
     entryWord
