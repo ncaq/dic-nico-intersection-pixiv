@@ -305,6 +305,9 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
   , not (not ("アニメ" `T.isInfixOf` entryWord) && "あにめ" `T.isInfixOf` entryYomi)
   , not (not ("絵師" `T.isInfixOf` entryWord) && "えし" `T.isInfixOf` entryYomi)
+    -- 読みにかわいいと書いているのに単語にかわいいと書かれていないのを除外
+  , not ("かわいい" `T.isInfixOf` entryYomi
+         && not (any (`T.isInfixOf` entryWord) ["かわいい", "カワイイ", "可愛い", "KAWAII", "Kawaii", "kawaii"]))
     -- ※ で始まる記事は変換には使いづらい
   , not ("※" `T.isPrefixOf` entryWord)
     -- 制御文字による偽装タグを除去
