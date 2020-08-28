@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
@@ -276,7 +277,12 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 単語が読みに比べて異様に長くない
   , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
-  , yomiLength < wordLength * 6
+    -- 記号などを含めたいので単語の長さで基準を大幅に変える
+  , yomiLength < wordLength *
+    if | wordLength <= 2 -> 6
+       | wordLength <= 4 -> 5
+       | wordLength <= 10 -> 3
+       | otherwise -> 2
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
   , T.all ('〔' /=) entryWord
