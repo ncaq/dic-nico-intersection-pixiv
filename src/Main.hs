@@ -267,8 +267,12 @@ toFuzzy w =
 -- | 辞書に適している単語を抽出する(1段階目), リダイレクト関係は考慮しない
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
+  -- Pixiv百科時点にも存在する単語のみを使う
+  [ toFuzzy entryWord `S.member` dicPixiv
+    -- 定義済みの特殊な読みではない
+  , not (entryWord `S.member` dicNicoSpecialYomi)
     -- 読みが異様に短くない
-  [ 1 < yomiLength
+  , 1 < yomiLength
     -- 単語が読みに比べて異様に長くない
   , wordLength < yomiLength * 3
     -- 読みが単語に比べて異様に長くない
@@ -276,6 +280,10 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
   , T.all ('〔' /=) entryWord
+    -- 制御文字による偽装タグを除去
+  , T.all (/= '\803') entryWord
+    -- 数字だけの記事を除外
+  , not (T.all isNumber entryWord)
     -- 全てAsciiアルファベットで3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
   , not (T.all (\c -> isDigit c || isAsciiUpper c || isAsciiLower c) entryWord && wordLength <= 3)
     -- 単語が全てカタカナである場合
@@ -311,10 +319,6 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 読みにかわいいと書いているのに単語にかわいいと書かれていないのを除外
   , not ("かわいい" `T.isInfixOf` entryYomi
          && not (any (`T.isInfixOf` entryWord) ["かわいい", "カワイイ", "可愛い", "KAWAII", "Kawaii", "kawaii"]))
-    -- ※ で始まる記事は変換には使いづらい
-  , not ("※" `T.isPrefixOf` entryWord)
-    -- 制御文字による偽装タグを除去
-  , T.all (/= '\803') entryWord
     -- 誕生祭, 生誕祭を除去
   , not ("誕生祭" `T.isInfixOf` entryWord)
   , not ("生誕祭" `T.isInfixOf` entryWord)
@@ -333,11 +337,13 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("ふゅーちゃーなんばーず" `T.isPrefixOf` entryYomi)
     -- 大事なことなので系統が多すぎるので除外
   , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
-    -- コミックマーケットの列挙除外
-  , isLeft $ parseOnly (string "コミックマーケット" *> many1 digit) entryWord
+    -- ※ で始まる記事は変換には使いづらい
+  , not ('※' == T.head entryWord)
     -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
     -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
-  , isLeft $ parseOnly (string "SCP-") entryWord
+  , not ("SCP-" `T.isPrefixOf` entryWord)
+    -- コミックマーケットの列挙除外
+  , isLeft $ parseOnly (string "コミックマーケット" *> many1 digit) entryWord
     -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
   , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
     -- 1月1日 のような単語はあっても辞書として意味がなく容量を食うだけなので除外
@@ -355,12 +361,6 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , isLeft $ parseOnly
     (skipMany1 (satisfy isAscii) *> (char '系' <|> char '形') *> endOfInput)
     entryWord
-    -- 数字だけの記事を除外
-  , not (T.all isNumber entryWord)
-    -- 定義済みの特殊な読みではない
-  , not (entryWord `S.member` dicNicoSpecialYomi)
-    -- Pixiv百科時点にも存在する単語のみを使う
-  , toFuzzy entryWord `S.member` dicPixiv
   ]
   where yomiLength = T.length entryYomi
         wordLength = T.length entryWord
