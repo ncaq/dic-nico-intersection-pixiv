@@ -311,8 +311,10 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not ("よみかた" `T.isSuffixOf` entryYomi)
   , not ("よみがな" `T.isSuffixOf` entryYomi)
   -- 読みがなで分岐を示している単語を除外
-  , not ("または" `T.isInfixOf` entryYomi)
-  , not ("もしくは" `T.isInfixOf` entryYomi)
+  -- 本当に記事名に入っているものは除外しない
+  , not ("あるいは" `T.isInfixOf` entryYomi && not ("あるいは" `T.isInfixOf` entryWord))
+  , not ("または" `T.isInfixOf` entryYomi && not ("または" `T.isInfixOf` entryWord))
+  , not ("もしくは" `T.isInfixOf` entryYomi && not ("もしくは" `T.isInfixOf` entryWord))
     -- 単語の最後が兄貴か姉貴の場合読みも兄貴で終わることを保証
     -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
