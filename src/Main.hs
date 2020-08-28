@@ -311,6 +311,8 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 一般単語で一般単語の読みなのに単語本体は兄貴とついていて勝手に変換結果に 兄貴 がついてくるのを防止
   , not ("兄貴" `T.isSuffixOf` entryWord) || ("あにき" `T.isSuffixOf` entryYomi)
   , not ("姉貴" `T.isSuffixOf` entryWord) || ("あねき" `T.isSuffixOf` entryYomi)
+    -- 事件で終わる場合読みもじけんで終わることを保証
+  , not ("事件" `T.isSuffixOf` entryWord) || ("じけん" `T.isSuffixOf` entryYomi)
     -- 記事名にその単語を含まないのにも関らず読みでそれを表現しようとしている記事を除外
   , not (not ("実況" `T.isInfixOf` entryWord) && "じっきょう" `T.isInfixOf` entryYomi)
   , not (not ("映画" `T.isInfixOf` entryWord) && "えいが" `T.isInfixOf` entryYomi)
