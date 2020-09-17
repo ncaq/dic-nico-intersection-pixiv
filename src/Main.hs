@@ -11,7 +11,7 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
 import           Control.Parallel.Strategies
-import           Data.Attoparsec.Text
+import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
 import           Data.Char
 import           Data.Either                 (isLeft)
@@ -36,7 +36,6 @@ import           Data.Time.LocalTime
 import           GHC.Generics                (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
-import           Prelude
 import           System.Directory
 import           Text.HTML.DOM
 import           Text.XML                    hiding (parseLBS)
@@ -86,9 +85,11 @@ getDictionary = do
       -- 読みがなキーマップ作成
       dicNicoYomiMap = mkDicNicoYomiMapNonRedirect dictionaryFiltered
       -- 誤変換指摘除外フィルタをかける
-      dicFinalFiltered = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
+      dicNotMisconversion = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
+      -- シリーズ除外フィルタをかける
+      dicNotSeries = filter (notSeries $ S.fromList $ map entryWord dicNotMisconversion) dicNotMisconversion `using` parList rseq
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi $ sortOn entryWord dicFinalFiltered
+      dictionarySorted = sortOn entryYomi $ sortOn entryWord dicNotSeries
   return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
@@ -352,8 +353,6 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
     -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
   , not ("SCP-" `T.isPrefixOf` entryWord)
-    -- コミックマーケットの列挙除外
-  , isLeft $ parseOnly (string "コミックマーケット" *> many1 digit) entryWord
     -- 第1回シンデレラガール選抜総選挙 のような単語は辞典では意味はあってもIME辞書では意味がないので除外
   , isLeft $ parseOnly (char '第' *> many1 digit *> char '回') entryWord
     -- 1月1日 のような単語はあっても辞書として意味がなく容量を食うだけなので除外
@@ -398,3 +397,11 @@ mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
 mkDicNicoYomiMapNonRedirect dictionaryFiltered
   = M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
+
+-- | ドラゴンクエストビルダーズ2
+-- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
+notSeries :: S.HashSet T.Text -> Entry -> Bool
+notSeries dicWord Entry{entryWord}
+  = case parseOnly (P.takeWhile (not . isDigit) <* (rational :: Parser Rational) <* endOfInput) entryWord of
+  Left _     -> True
+  Right base -> not $ base `S.member` dicWord
