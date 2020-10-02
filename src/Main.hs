@@ -72,7 +72,9 @@ main = do
 
 -- | エントリー1つをMozcの辞書データ1行に変換する
 toMozcLine :: Entry -> T.Text
-toMozcLine Entry{entryYomi, entryWord} = entryYomi <> "\t" <> entryWord <> "\t" <> "固有名詞" <> "\t" <> "nico-pixiv"
+toMozcLine Entry{entryYomi, entryWord} = T.intercalate "\t" [entryYomi, entryWord, kind, "nico-pixiv"]
+  where kind | T.all isAscii entryWord = "アルファベット"
+             | otherwise = "固有名詞"
 
 -- | 辞書(エントリーの列)を得る
 getDictionary :: IO [Entry]
