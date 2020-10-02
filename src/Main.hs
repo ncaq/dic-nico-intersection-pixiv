@@ -181,7 +181,7 @@ katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiraga
 isKatakana :: Char -> Bool
 isKatakana c =
   let o = ord c
-  in 0x30A1 < o && o < 0x30FA
+  in 0x30A0 <= o && o <= 0x30FF
 
 -- | ひらがなの捨て仮名を普通のかなにする
 toUpHiragana :: T.Text -> T.Text
