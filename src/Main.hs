@@ -293,12 +293,13 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (T.all isNumber entryWord)
     -- 全てAsciiアルファベットで3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
   , not (T.all (\c -> isDigit c || isAsciiUpper c || isAsciiLower c) entryWord && wordLength <= 3)
-    -- 単語が全てカタカナ(中黒で区切るのを許可する)である場合
+    -- 単語が全てカタカナ(特定の記号で区切ることを許可する)である場合
     -- 記号を除外してひらがなにして読みと一致する場合のみ許可
     -- 全てカタカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
     -- 大文字小文字の揺れは許容
-  , not (isKatakana (T.head entryWord) && T.all (\c -> isKatakana c || c == '・') entryWord)
-    || toUpHiragana (katakanaToHiragana $ T.filter (/= '・') entryWord) == toUpHiragana entryYomi
+  , not (isKatakana (T.head entryWord) && T.all (\c -> isKatakana c || c == '・' || c == '=') entryWord)
+    || toUpHiragana (katakanaToHiragana $ T.filter (\c -> not (isPunctuation c) && not (isSymbol c)) entryWord)
+    == toUpHiragana entryYomi
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
