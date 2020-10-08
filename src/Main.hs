@@ -44,11 +44,11 @@ import           Text.XML.Scraping
 import           Text.XML.Selector.TH
 
 -- | 記事エントリーを表すデータ構造
--- 名前が短すぎますが,これはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
+-- 名前が短すぎますがこれはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
 data Entry
   = Entry
-  { entryYomi     :: !T.Text -- ^ 読み, ひらがなに限定
-  , entryWord     :: !T.Text -- ^ 単語, オリジナルのものがそのまま入ります
+  { entryYomi     :: !T.Text -- ^ 読み、ひらがなに限定
+  , entryWord     :: !T.Text -- ^ 単語、オリジナルのものがそのまま入ります
   , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
   } deriving (Eq, Ord, Read, Show, Generic)
 
@@ -268,7 +268,7 @@ toFuzzy w =
       useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ katakanaToHiragana useWord
 
--- | 辞書に適している単語を抽出する(1段階目), リダイレクト関係は考慮しない
+-- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しない
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   -- Pixiv百科時点にも存在する単語のみを使う
