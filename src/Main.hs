@@ -171,34 +171,6 @@ getDicNicoPage href = do
           _ -> return Nothing
   return $ dic <> fromMaybe S.empty nextDic
 
--- | カタカナをひらがなに変換
--- 長音記号を変換しない
--- icuで変換
--- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
-katakanaToHiragana :: T.Text -> T.Text
-katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
-
--- | `Char`がひらがなである
-isHiragana :: Char -> Bool
-isHiragana c =
-  let o = ord c
-  in 0x3041 <= o && o <= 0x309F
-
--- | `Char`がカタカナである
--- ICUのblockCodeは純粋関数なのに例外を出すので自前実装しています
-isKatakana :: Char -> Bool
-isKatakana c =
-  let o = ord c
-  in 0x30A0 <= o && o <= 0x30FF
-
--- | ひらがなの捨て仮名を普通のかなにする
-toUpHiragana :: T.Text -> T.Text
-toUpHiragana word =
-  let lower = ['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゃ', 'ゅ', 'ょ', 'ゎ', 'ゕ', 'ゖ']
-      upper = ['あ', 'い', 'う', 'え', 'お', 'つ', 'や', 'ゆ', 'よ', 'わ', 'か', 'け']
-      lowerUpper = M.fromList $ zip lower upper
-  in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) word
-
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
@@ -274,29 +246,70 @@ toFuzzy w =
       useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ katakanaToHiragana useWord
 
+-- | カタカナをひらがなに変換
+-- 長音記号を変換しない
+-- icuで変換
+-- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
+katakanaToHiragana :: T.Text -> T.Text
+katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
+
+-- | `Char`がひらがなである
+-- Unicodeの平仮名ブロックとは一致せず、読みを持つものだけである
+isReadableHiragana :: Char -> Bool
+isReadableHiragana c =
+  let o = ord c
+  in 0x3041 <= o && o <= 0x3096
+
+-- | `Char`がカタカナである
+-- ICUのblockCodeは純粋関数なのに例外を出すので自前実装しています
+-- Unicodeの片仮名ブロックとは一致せず、読みを持つものだけである
+isReadebleKatakana :: Char -> Bool
+isReadebleKatakana c =
+  let o = ord c
+  in 0x30A1 <= o && o <= 0x30FA
+
+-- | `isReadableHiragana` or `isReadebleKatakana`
+isReadebleHiraganaOrKatakana :: Char -> Bool
+isReadebleHiraganaOrKatakana c = isReadableHiragana c || isReadebleKatakana c
+
+-- | ひらがなの捨て仮名を普通のかなにする
+toUpHiragana :: T.Text -> T.Text
+toUpHiragana word =
+  let lower = "ぁぃぅぇぉっゃゅょゎゕゖ"
+      upper = "あいうえおつやゆよわかけ"
+      lowerUpper = M.fromList $ zip lower upper
+  in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) word
+
+-- | 読みが明瞭に分かるひらがなである
+isClearHiragana :: Char -> Bool
+isClearHiragana c
+  | c `elem`
+    (("ぁぃぅぇぉっゃゅょゎゕゖ" :: String) -- 捨て仮名の読みは分からない
+     <> "ほはへ" -- 現代仮名遣いの欠点で変則的な読みをすることがある ほ→おなど
+     <> "ゔ"-- 外来語に多いので無理
+     <> "ゑを" -- 現代仮名遣いへの以降が中途半端になったので曖昧性が高い
+     <> "ゝゞゟ" -- 踊り字は頑張ればコンテキスト由来で解析出来るかもしれませんが難しいし許容する分にはさほど困らない
+    ) = False
+  | otherwise = isReadableHiragana c
+
+-- | 読みが明瞭に分かるカタカナである
+isClearKatakana :: Char -> Bool
+isClearKatakana 'ケ' = False -- 阿佐ケ谷駅とかが判別不可能なので
+isClearKatakana c   = isReadebleKatakana c
+
+-- | 読みが明瞭にわかる平仮名に変換する
+toClearHiragana :: Char -> Char
+toClearHiragana 'ヶ' = 'が'
+toClearHiragana c
+  | isClearKatakana c = T.head $ katakanaToHiragana $ T.singleton c -- katakanaToHiraganaのためにTextに変換して戻すのすごい無駄
+  | otherwise = c
+
 -- | 単語をある程度正確に推定出来る範囲で読み(ひらがな)に変換します
 -- 今の所カタカナ → ひらがなのみ
 toYomiEffortGroup :: T.Text -> [T.Text]
-toYomiEffortGroup w =
-  let special 'ヶ' = 'が'
-      special c   = c
-      -- 阿佐ケ谷駅とかが判別不可能なので
-      isClearKatakana 'ケ' = False
-      isClearKatakana c   = isKatakana c
-      isClearHiragana c
-        | c `elem` ['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゃ', 'ゅ', 'ょ', 'ゎ', 'ゕ', 'ゖ' -- 捨て仮名の読みは分からない
-                   , 'ほ', 'は', 'へ'                                                      -- 変則的な読みをする ほ→おなど
-                   , 'ゔ'                                                                  -- 外来語に多いので無理
-                   , 'ゑ', 'を'                                                            -- 曖昧性が高い
-                   , 'ゝ', 'ゞ', 'ゟ'                                                      -- 踊り字除外
-                   ] = False
-        | otherwise = isHiragana c
-      toClearHiragana c
-        | isClearKatakana c = T.head $ katakanaToHiragana $ T.singleton $ special c -- headが雑すぎる…
-        | otherwise = c
-  in if " ゙" `T.isInfixOf` w
-     then [] -- アネ゙デパミ゙への降伏
-     else filter (/= "") $ T.split (not . isClearHiragana) $ T.map toClearHiragana w
+toYomiEffortGroup w = if " ゙" `T.isInfixOf` w -- アネ゙デパミ゙みたいなのを解析するのは不可能でした
+  then []
+  else filter (/= "") $ T.split (not . isClearHiragana) $ T.map toClearHiragana w
 
 -- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しない
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
@@ -325,16 +338,17 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (T.all isNumber entryWord)
     -- 全てAsciiアルファベットで3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
   , not (T.all (\c -> isDigit c || isAsciiUpper c || isAsciiLower c) entryWord && wordLength <= 3)
-    -- 単語が全てカタカナ(特定の記号で区切ることを許可する)である場合
-    -- 記号を除外してひらがなにして読みと一致する場合のみ許可
-    -- 全てカタカナである場合ひらがなにしたもののみが遊んでいないと特定できるため
-    -- 大文字小文字の揺れは許容
-  , not (isKatakana (T.head entryWord) && T.all (\c -> isKatakana c || c == '・' || c == '=') entryWord)
-    || toUpHiragana (katakanaToHiragana $ T.filter (\c -> not (isPunctuation c) && not (isSymbol c)) entryWord)
-    == toUpHiragana entryYomi
     -- ひらがなカタカナが記事に入っている場合読みがなにも同じものが入っていることを保証する
-    -- 本当はパーサーコンビネータで順序を保証するべきなのですが実装が面倒なので手を抜いています
+    -- 要するに記事名をコンピュータが判断できる範囲でひらがな化して比較する
+    -- 本当はパーサーコンビネータなどで順序を保証するべきなのですが実装が面倒なので手を抜いています
   , all (`T.isInfixOf` (toUpHiragana entryYomi)) $ toYomiEffortGroup entryWord
+    -- 単語が全てひらがなかカタカナ(特定の記号で区切ってある場合も含む)である場合
+    -- 記号を除いて全文一致することを求めます
+  , not (isReadebleHiraganaOrKatakana (T.head entryWord)
+         && T.all (\c -> not (c `elem` ("ゑをヱヲ" :: String))
+                    && isReadebleHiraganaOrKatakana c || c `elem` ("・= ー" :: String)) entryWord)
+    || ((T.filter isClearHiragana . katakanaToHiragana) entryWord)
+    == ((T.filter isClearHiragana) entryYomi)
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
     -- 変換で誤爆危険性が高いのと感嘆符をつけ足すだけなので変換する意味がない
     -- サジェストの役に立つかもしれないので5文字異常は許可します
@@ -427,7 +441,7 @@ notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- リダイレクトではなければ無条件で問題ない
   not entryRedirect
   -- ひらがなのみの場合漢字を溶かしたものである可能性が高いので除外
-  || (not (T.all isHiragana entryWord)
+  || (not (T.all isReadableHiragana entryWord)
      -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
       && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
 
