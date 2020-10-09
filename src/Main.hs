@@ -25,7 +25,6 @@ import           Data.Store
 import           Data.String
 import           Data.String.Transform
 import qualified Data.Text                   as T
-import           Data.Text.ICU.Char
 import           Data.Text.ICU.Translit
 import qualified Data.Text.IO                as T
 import qualified Data.Text.Lazy              as TL
@@ -179,7 +178,14 @@ getDicNicoPage href = do
 katakanaToHiragana :: T.Text -> T.Text
 katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
 
--- | ICUのblockCodeは純粋関数なのに例外を出すので自前実装
+-- | `Char`がひらがなである
+isHiragana :: Char -> Bool
+isHiragana c =
+  let o = ord c
+  in 0x3041 <= o && o <= 0x309F
+
+-- | `Char`がカタカナである
+-- ICUのblockCodeは純粋関数なのに例外を出すので自前実装しています
 isKatakana :: Char -> Bool
 isKatakana c =
   let o = ord c
@@ -268,6 +274,30 @@ toFuzzy w =
       useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ katakanaToHiragana useWord
 
+-- | 単語をある程度正確に推定出来る範囲で読み(ひらがな)に変換します
+-- 今の所カタカナ → ひらがなのみ
+toYomiEffortGroup :: T.Text -> [T.Text]
+toYomiEffortGroup w =
+  let special 'ヶ' = 'が'
+      special c   = c
+      -- 阿佐ケ谷駅とかが判別不可能なので
+      isClearKatakana 'ケ' = False
+      isClearKatakana c   = isKatakana c
+      isClearHiragana c
+        | c `elem` ['ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'っ', 'ゃ', 'ゅ', 'ょ', 'ゎ', 'ゕ', 'ゖ' -- 捨て仮名の読みは分からない
+                   , 'ほ', 'は', 'へ'                                                      -- 変則的な読みをする ほ→おなど
+                   , 'ゔ'                                                                  -- 外来語に多いので無理
+                   , 'ゑ', 'を'                                                            -- 曖昧性が高い
+                   , 'ゝ', 'ゞ', 'ゟ'                                                      -- 踊り字除外
+                   ] = False
+        | otherwise = isHiragana c
+      toClearHiragana c
+        | isClearKatakana c = T.head $ katakanaToHiragana $ T.singleton $ special c -- headが雑すぎる…
+        | otherwise = c
+  in if " ゙" `T.isInfixOf` w
+     then [] -- アネ゙デパミ゙への降伏
+     else filter (/= "") $ T.split (not . isClearHiragana) $ T.map toClearHiragana w
+
 -- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しない
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
@@ -302,6 +332,9 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , not (isKatakana (T.head entryWord) && T.all (\c -> isKatakana c || c == '・' || c == '=') entryWord)
     || toUpHiragana (katakanaToHiragana $ T.filter (\c -> not (isPunctuation c) && not (isSymbol c)) entryWord)
     == toUpHiragana entryYomi
+    -- ひらがなカタカナが記事に入っている場合読みがなにも同じものが入っていることを保証する
+    -- 本当はパーサーコンビネータで順序を保証するべきなのですが実装が面倒なので手を抜いています
+  , all (`T.isInfixOf` (toUpHiragana entryYomi)) $ toYomiEffortGroup entryWord
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
@@ -388,24 +421,24 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
 -- しかし全てのリダイレクト記事を許可してしまうと表記揺れで単語数が膨らんでしまうので
 -- ファジーマッチによってリダイレクト先を妥協予測します
 notMisconversion :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
-notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect}
+notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- リダイレクトではなければ無条件で問題ない
-  = not entryRedirect
+  not entryRedirect
   -- ひらがなのみの場合漢字を溶かしたものである可能性が高いので除外
-  || (not (T.all ((== Hiragana) . blockCode) entryWord)
+  || (not (T.all isHiragana entryWord)
      -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
       && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
 
 -- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
 mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
-mkDicNicoYomiMapNonRedirect dictionaryFiltered
-  = M.fromListWith (<>)
+mkDicNicoYomiMapNonRedirect dictionaryFiltered =
+  M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
 
 -- | ドラゴンクエストビルダーズ2
 -- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
 notSeries :: S.HashSet T.Text -> Entry -> Bool
-notSeries dicWord Entry{entryWord}
-  = case parseOnly (P.takeWhile (not . isDigit) <* (rational :: Parser Rational) <* endOfInput) entryWord of
-  Left _     -> True
-  Right base -> not $ base `S.member` dicWord
+notSeries dicWord Entry{entryWord} =
+  case parseOnly (P.takeWhile (not . isDigit) <* (rational :: Parser Rational) <* endOfInput) entryWord of
+    Left _     -> True
+    Right base -> not $ base `S.member` dicWord

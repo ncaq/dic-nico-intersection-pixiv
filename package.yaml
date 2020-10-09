@@ -45,13 +45,13 @@ dependencies:
   - store
   - string-transform
   - text
-  - text-icu
   - text-icu-translit
   - text-metrics
   - time
   - unicode-transforms
   - unordered-containers
   - xml-conduit
+  - pretty-simple # for debug
 
 executables:
   dic-nico-intersection-pixiv:

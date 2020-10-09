@@ -3,3 +3,6 @@
 :set -XNamedFieldPuns
 :set -XOverloadedStrings
 :set -XQuasiQuotes
+
+import qualified Text.Pretty.Simple
+:set -interactive-print=Text.Pretty.Simple.pPrint
