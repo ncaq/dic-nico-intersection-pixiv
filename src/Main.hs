@@ -336,9 +336,11 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 本当はパーサーコンビネータで順序を保証するべきなのですが実装が面倒なので手を抜いています
   , all (`T.isInfixOf` (toUpHiragana entryYomi)) $ toYomiEffortGroup entryWord
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
+    -- 変換で誤爆危険性が高いのと感嘆符をつけ足すだけなので変換する意味がない
+    -- サジェストの役に立つかもしれないので5文字異常は許可します
   , not (yomiLength <= 4 && (T.last entryWord == '?' || T.last entryWord == '!'))
     -- ちょw など先頭のひらがな部分だけを読みに含む単語は誤爆危険性が高いため除外
-    -- ! で終わる場合などは作品名のことが多いので除外しない
+    -- 感嘆符で終わる場合などは作品名のことが多いので除外しません
   , maybe True (\suf -> T.null suf || not (T.all (\c -> isAsciiUpper c || isAsciiLower c) suf)) $
     T.stripPrefix entryYomi entryWord
     -- 曖昧さ回避などわかりやすく単語記事ではないものを除外
