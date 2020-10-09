@@ -4,7 +4,7 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes       #-}
-module Main where
+module Main (main) where
 
 import           Control.Applicative
 import           Control.Concurrent
