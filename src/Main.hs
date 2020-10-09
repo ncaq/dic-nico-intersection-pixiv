@@ -341,14 +341,14 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- ひらがなカタカナが記事に入っている場合読みがなにも同じものが入っていることを保証する
     -- 要するに記事名をコンピュータが判断できる範囲でひらがな化して比較する
     -- 本当はパーサーコンビネータなどで順序を保証するべきなのですが実装が面倒なので手を抜いています
-  , all (`T.isInfixOf` (toUpHiragana entryYomi)) $ toYomiEffortGroup entryWord
+  , all (`T.isInfixOf` toUpHiragana entryYomi) $ toYomiEffortGroup entryWord
     -- 単語が全てひらがなかカタカナ(特定の記号で区切ってある場合も含む)である場合
     -- 記号を除いて全文一致することを求めます
   , not (isReadebleHiraganaOrKatakana (T.head entryWord)
-         && T.all (\c -> not (c `elem` ("ゑをヱヲ" :: String))
+         && T.all (\c -> c `notElem` ("ゑをヱヲ" :: String)
                     && isReadebleHiraganaOrKatakana c || c `elem` ("・= ー" :: String)) entryWord)
-    || ((T.filter isClearHiragana . katakanaToHiragana) entryWord)
-    == ((T.filter isClearHiragana) entryYomi)
+    || (T.filter isClearHiragana . katakanaToHiragana) entryWord
+    == T.filter isClearHiragana entryYomi
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
     -- 変換で誤爆危険性が高いのと感嘆符をつけ足すだけなので変換する意味がない
     -- サジェストの役に立つかもしれないので5文字異常は許可します
@@ -402,7 +402,7 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 大事なことなので系統が多すぎるので除外
   , not ("だいじなことなので" `T.isPrefixOf` entryYomi)
     -- ※ で始まる記事は変換には使いづらい
-  , not ('※' == T.head entryWord)
+  , '※' /= T.head entryWord
     -- SCP記事は大抵メタタイトルが読みがなになっているのでIME辞書として使えない
     -- 覚えにくいナンバーをメタタイトルから出せる辞書として役に立つかもしれないですが作るなら包括的にscp wikiをスクレイピングする
   , not ("SCP-" `T.isPrefixOf` entryWord)
