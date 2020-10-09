@@ -98,13 +98,13 @@ getDicInfo :: IO T.Text
 getDicInfo = do
   time <- formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z" <$> getZonedTime
   return $ T.unlines
-    [ "#name: dic-nico-intersection-pixiv"
-    , "#description: ニコニコ大百科とピクシブ百科事典の共通部分の辞書"
-    , "#github: https://github.com/ncaq/dic-nico-intersection-pixiv"
-    , "#createdAt: " <> toTextStrict time
-    , "#copying:"
-    , "#nicovideo: https://dic.nicovideo.jp/"
-    , "#pixiv: https://dic.pixiv.net/"
+    [ "# name: dic-nico-intersection-pixiv"
+    , "# description: ニコニコ大百科とピクシブ百科事典の共通部分の辞書"
+    , "# github: https://github.com/ncaq/dic-nico-intersection-pixiv"
+    , "# createdAt: " <> toTextStrict time
+    , "# copying:"
+    , "# nicovideo: https://dic.nicovideo.jp/"
+    , "# pixiv: https://dic.pixiv.net/"
     ]
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
