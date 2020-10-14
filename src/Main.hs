@@ -201,7 +201,7 @@ getDicPixiv = do
   if exist
     then B.readFile path >>= decodeIO
     else do
-    sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap/"
+    sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap.xml"
     sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
       queryT [jq|loc|] sitemap
     let dic = S.fromList $
