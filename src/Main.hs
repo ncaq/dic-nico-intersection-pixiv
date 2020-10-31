@@ -336,8 +336,9 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , T.all (/= '\803') entryWord
     -- 数字だけの記事を除外
   , not (T.all isNumber entryWord)
-    -- 全てAsciiアルファベットで3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
-  , not (T.all (\c -> isDigit c || isAsciiUpper c || isAsciiLower c) entryWord && wordLength <= 3)
+    -- 全てAscii文字で読みが2文字以下もしくは単語が3文字以下なら直接入力したほうが速いのと誤爆危険性が高いので除外
+    -- Ascii可読文字だけではなくスペースや記号も除外しているのはAsciiの範囲ならキーボードから直接入力出来るため
+  , not (T.all isAscii entryWord && (yomiLength <= 2 || wordLength <= 3))
     -- ひらがなカタカナが記事に入っている場合読みがなにも同じものが入っていることを保証する
     -- 要するに記事名をコンピュータが判断できる範囲でひらがな化して比較する
     -- 本当はパーサーコンビネータなどで順序を保証するべきなのですが実装が面倒なので手を抜いています
