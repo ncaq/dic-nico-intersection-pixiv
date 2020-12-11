@@ -456,6 +456,10 @@ mkDicNicoYomiMapNonRedirect dictionaryFiltered =
 -- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
 notSeries :: S.HashSet T.Text -> Entry -> Bool
 notSeries dicWord Entry{entryWord} =
-  case parseOnly (P.takeWhile (not . isDigit) <* (rational :: Parser Rational) <* endOfInput) entryWord of
-    Left _     -> True
-    Right base -> not $ base `S.member` dicWord
+  -- 長い数字は入力するの面倒なので除外しないようにする
+  case parseOnly ((,) <$> P.takeWhile (not . isDigit) <*> (rational :: Parser Double) <* endOfInput) entryWord of
+    Left _          -> True
+    Right (base, r) -> not $ base `S.member` dicWord &&
+      -- 小数点数なので雑な長さ比較になっている
+      -- 整数なら3文字なら除外されないはず
+      length (show r) <= 4
