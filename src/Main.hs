@@ -80,17 +80,25 @@ getDictionary :: IO [Entry]
 getDictionary = do
   (dicNico, (dicNicoSpecialYomi, dicPixiv)) <- getDicNico `concurrently` (getDicNicoSpecialYomi `concurrently` getDicPixiv)
   -- ghciでのデバッグを楽にするために部分適用
-  let dictionaryWordPred = dictionaryWord dicNicoSpecialYomi dicPixiv
+  let dictionaryWordFn = dictionaryWord dicNicoSpecialYomi dicPixiv
       -- リスト化して1段階目のフィルタを通す
-      dictionaryFiltered = filter dictionaryWordPred (S.toList dicNico) `using` parList rseq
-      -- 読みがなキーマップ作成
-      dicNicoYomiMap = mkDicNicoYomiMapNonRedirect dictionaryFiltered
-      -- 誤変換指摘除外フィルタをかける
-      dicNotMisconversion = filter (notMisconversion dicNicoYomiMap) dictionaryFiltered `using` parList rseq
+      dictionaryFiltered = filter dictionaryWordFn (S.toList dicNico)
+      -- 辞書単語の集合
+      dicWordSet = S.fromList $ map entryWord dictionaryFiltered
       -- シリーズ除外フィルタをかける
-      dicNotSeries = filter (notSeries $ S.fromList $ map entryWord dicNotMisconversion) dicNotMisconversion `using` parList rseq
+      dicNotSeries = filter (notSeries dicWordSet) dictionaryFiltered
+      -- 読みがなキーマップ作成
+      dicNicoYomiMap = mkDicNicoYomiMap dicNotSeries
+      -- 非リダイレクト読みがなキーマップ作成
+      dicNicoYomiMapNotRedirect = mkDicNicoYomiMapNotRedirect dicNotSeries
+      -- リンク用除外フィルタ関数
+      notLinkFriendlyFn = notLinkFriendly dicNicoYomiMap
+      -- 誤変換指摘除外フィルタ関数
+      notMisconversionFn = notMisconversion dicNicoYomiMapNotRedirect
+      -- 誤変換とリンク用フィルタをかける
+      dicNotMisAndLink = filter (\e -> notMisconversionFn e && notLinkFriendlyFn e) dicNotSeries
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi $ sortOn entryWord dicNotSeries
+      dictionarySorted = sortOn entryYomi (sortOn entryWord dicNotMisAndLink) `using` parList rseq
   return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
@@ -428,6 +436,45 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   where yomiLength = T.length entryYomi
         wordLength = T.length entryWord
 
+-- | 読みがなをキーとした単語のマップを作ります
+mkDicNicoYomiMap :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
+mkDicNicoYomiMap dictionaryFiltered =
+  M.fromListWith (<>)
+  [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord} <- dictionaryFiltered]
+
+-- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
+mkDicNicoYomiMapNotRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
+mkDicNicoYomiMapNotRedirect dictionaryFiltered =
+  M.fromListWith (<>)
+  [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
+
+-- | ドラゴンクエストビルダーズ2
+-- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
+notSeries :: S.HashSet T.Text -> Entry -> Bool
+notSeries dicWord Entry{entryWord} =
+  -- 長い数字は入力するの面倒なので除外しないようにする
+  case parseOnly ((,) <$> P.takeWhile (not . isDigit) <*> (rational :: Parser Double) <* endOfInput) entryWord of
+    Left _          -> True
+    Right (base, r) -> not $ base `S.member` dicWord &&
+      -- 小数点数なので雑な長さ比較になっている
+      -- 整数なら3文字なら除外されないはず
+      length (show r) <= 4
+
+-- | identityv
+-- のような正式名称を小文字に潰してスペースを消してリンクを繋ぎやすくした単語を除外するための関数
+notLinkFriendly :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
+notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
+  -- 同じ読みの記事セット、自分自身は除く
+  let equalYomiEntrySet = S.filter (/= entryWord) $ fromMaybe S.empty $ M.lookup entryYomi dicNicoYomiMap
+  -- 同じ読みの記事単語空白を除いたもののセット
+      equalYomiEntryWordThinSet = S.map (T.filter (not . isSpace)) equalYomiEntrySet
+  -- 同じ読みの記事単語空白を除いて小文字にしたもののセット
+      equalYomiEntryWordThinAndLeterSet = S.map (T.filter (not . isSpace) . T.toLower) equalYomiEntrySet
+  -- リンクのための記事はリダイレクトになっているのでリダイレクトで無ければリンクのための記事と判断しなくて良い
+  in not entryRedirect ||
+  -- 空白を除いて小文字化したら同じ記事名に同じ読みになる単語が存在すればリンクのための記事だとわかる
+     (notElem entryWord equalYomiEntryWordThinSet && notElem entryWord equalYomiEntryWordThinAndLeterSet)
+
 -- | 誤変換指摘対策
 -- リダイレクト記事であり
 -- 元の記事の読みと同一であるか単語が曖昧的に一致するリダイレクト記事ではない記事が存在する場合
@@ -445,21 +492,3 @@ notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   || (not (T.all isReadableHiragana entryWord)
      -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
       && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
-
--- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
-mkDicNicoYomiMapNonRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
-mkDicNicoYomiMapNonRedirect dictionaryFiltered =
-  M.fromListWith (<>)
-  [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
-
--- | ドラゴンクエストビルダーズ2
--- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
-notSeries :: S.HashSet T.Text -> Entry -> Bool
-notSeries dicWord Entry{entryWord} =
-  -- 長い数字は入力するの面倒なので除外しないようにする
-  case parseOnly ((,) <$> P.takeWhile (not . isDigit) <*> (rational :: Parser Double) <* endOfInput) entryWord of
-    Left _          -> True
-    Right (base, r) -> not $ base `S.member` dicWord &&
-      -- 小数点数なので雑な長さ比較になっている
-      -- 整数なら3文字なら除外されないはず
-      length (show r) <= 4
