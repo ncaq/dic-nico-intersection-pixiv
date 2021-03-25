@@ -450,6 +450,9 @@ mkDicNicoYomiMapNotRedirect dictionaryFiltered =
 
 -- | ドラゴンクエストビルダーズ2
 -- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
+-- Splatoon 2
+-- のような間にスペースが入っている単語を除外していないのは意図があり、
+-- Windows 10がWindowsのシリーズ扱いで除外されてしまう割にあまり除外できる単語がないため
 notSeries :: S.HashSet T.Text -> Entry -> Bool
 notSeries dicWord Entry{entryWord} =
   -- 長い数字は入力するの面倒なので除外しないようにする
