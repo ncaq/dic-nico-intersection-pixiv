@@ -15,10 +15,10 @@ import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
 import           Data.Char
 import           Data.Either                 (isLeft)
-import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
-import           Data.List
+import           Data.Hashable
+import qualified Data.List                   as L
 import qualified Data.Map.Strict             as OM
 import           Data.Maybe                  (fromJust, fromMaybe, mapMaybe)
 import           Data.Store
@@ -98,7 +98,7 @@ getDictionary = do
       -- 誤変換とリンク用フィルタをかける
       dicNotMisAndLink = filter (\e -> notMisconversionFn e && notLinkFriendlyFn e) dicNotSeries
       -- HashSetは順番バラバラなので最終的にソートする
-      dictionarySorted = sortOn entryYomi (sortOn entryWord dicNotMisAndLink) `using` parList rseq
+      dictionarySorted = L.sortOn entryYomi (L.sortOn entryWord dicNotMisAndLink) `using` parList rseq
   return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示する
@@ -168,7 +168,7 @@ getDicNicoPage href = do
       navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
   when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
   nextDic <-
-        case find (\case
+        case L.find (\case
                       NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
                       _ -> False
                   ) navis of
@@ -333,10 +333,10 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
     -- 読みが単語に比べて異様に長くない
     -- 記号などを含めたいので単語の長さで基準を大幅に変える
   , yomiLength < wordLength *
-    if | wordLength <= 2 -> 6
-       | wordLength <= 4 -> 5
+    if | wordLength <= 2  -> 6
+       | wordLength <= 4  -> 5
        | wordLength <= 10 -> 3
-       | otherwise -> 2
+       | otherwise        -> 2
     -- 括弧を含まない
   , T.all ('(' /=) entryWord
   , T.all ('〔' /=) entryWord
