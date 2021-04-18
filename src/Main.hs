@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass    #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
@@ -49,10 +50,7 @@ data Entry
   { entryYomi     :: !T.Text -- ^ 読み、ひらがなに限定。
   , entryWord     :: !T.Text -- ^ 単語、オリジナルのものがそのまま入ります。
   , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
-  } deriving (Eq, Ord, Read, Show, Generic)
-
-instance Hashable Entry
-instance Store Entry
+  } deriving (Eq, Ord, Read, Show, Generic, Hashable, Store)
 
 -- | 辞書を得て、標準出力にプリントアウトします。
 main :: IO ()
