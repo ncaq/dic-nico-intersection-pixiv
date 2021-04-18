@@ -42,22 +42,22 @@ import           Text.XML.Cursor
 import           Text.XML.Scraping
 import           Text.XML.Selector.TH
 
--- | 記事エントリーを表すデータ構造
--- 名前が短すぎますがこれはライブラリじゃなくてアプリケーションなので汎用的な名前を付けてしまう
+-- | 記事エントリーを表すデータ構造。
+-- 名前が短すぎますが、これはライブラリじゃなくてアプリケーションなので、一般名刺的な名前を付けても構わないと判断しました。
 data Entry
   = Entry
-  { entryYomi     :: !T.Text -- ^ 読み、ひらがなに限定
-  , entryWord     :: !T.Text -- ^ 単語、オリジナルのものがそのまま入ります
+  { entryYomi     :: !T.Text -- ^ 読み、ひらがなに限定。
+  , entryWord     :: !T.Text -- ^ 単語、オリジナルのものがそのまま入ります。
   , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
   } deriving (Eq, Ord, Read, Show, Generic)
 
 instance Hashable Entry
 instance Store Entry
 
--- | 辞書を得て標準出力にプリントアウトする
+-- | 辞書を得て、標準出力にプリントアウトします。
 main :: IO ()
 main = do
-  -- キャッシュディレクトリがなければ作成する
+  -- キャッシュディレクトリがなければ作成します
   createDirectoryIfMissing False "cache"
 
   dicInfo <- getDicInfo
@@ -69,39 +69,40 @@ main = do
   -- 辞書本体をプリント
   T.putStr $ T.unlines $ toMozcLine <$> dictionary
 
--- | エントリー1つをMozcの辞書データ1行に変換する
+-- | エントリー1つをMozcの辞書データ1行に変換します。
 toMozcLine :: Entry -> T.Text
 toMozcLine Entry{entryYomi, entryWord} = T.intercalate "\t" [entryYomi, entryWord, kind, "nico-pixiv"]
   where kind | T.all isAscii entryWord = "アルファベット"
              | otherwise = "固有名詞"
 
--- | 辞書(エントリーの列)を得る
+-- | 辞書(エントリーの列)を得ます。
 getDictionary :: IO [Entry]
 getDictionary = do
   (dicNico, (dicNicoSpecialYomi, dicPixiv)) <- getDicNico `concurrently` (getDicNicoSpecialYomi `concurrently` getDicPixiv)
-  -- ghciでのデバッグを楽にするために部分適用
+  -- ghciでのデバッグを楽にするために部分適用しておきます
   let dictionaryWordFn = dictionaryWord dicNicoSpecialYomi dicPixiv
-      -- リスト化して1段階目のフィルタを通す
+      -- リスト化して1段階目のフィルタを通します
       dictionaryFiltered = filter dictionaryWordFn (S.toList dicNico)
-      -- 辞書単語の集合
+      -- 辞書単語の集合です
       dicWordSet = S.fromList $ map entryWord dictionaryFiltered
-      -- シリーズ除外フィルタをかける
+      -- シリーズ除外フィルタをかけます
       dicNotSeries = filter (notSeries dicWordSet) dictionaryFiltered
-      -- 読みがなキーマップ作成
+      -- 読みがなキーマップを作成します
       dicNicoYomiMap = mkDicNicoYomiMap dicNotSeries
-      -- 非リダイレクト読みがなキーマップ作成
+      -- 非リダイレクト読みがなキーマップを作成します
       dicNicoYomiMapNotRedirect = mkDicNicoYomiMapNotRedirect dicNotSeries
-      -- リンク用除外フィルタ関数
+      -- リンク用除外フィルタ関数です
       notLinkFriendlyFn = notLinkFriendly dicNicoYomiMap
-      -- 誤変換指摘除外フィルタ関数
+      -- 誤変換指摘除外フィルタ関数です
       notMisconversionFn = notMisconversion dicNicoYomiMapNotRedirect
-      -- 誤変換とリンク用フィルタをかける
+      -- 誤変換とリンク用フィルタをかけます
       dicNotMisAndLink = filter (\e -> notMisconversionFn e && notLinkFriendlyFn e) dicNotSeries
-      -- HashSetは順番バラバラなので最終的にソートする
+      -- 順番がバラバラになるので、読み/単語の優先度で最終的にソートします。
+      -- また最後にリストの評価を並列で行うことで速度向上を狙います。
       dictionarySorted = L.sortOn entryYomi (L.sortOn entryWord dicNotMisAndLink) `using` parList rseq
   return dictionarySorted
 
--- | 生成日を含めたこのデータの情報を表示する
+-- | 生成日を含めたこのデータの情報を表示します。
 getDicInfo :: IO T.Text
 getDicInfo = do
   time <- formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z" <$> getZonedTime
@@ -116,7 +117,7 @@ getDicInfo = do
     ]
 
 -- | [50音順単語記事一覧 - ニコニコ大百科](https://dic.nicovideo.jp/m/a/a)
--- から単語と読み一覧を取得する
+-- から単語と読み一覧を取得します。
 getDicNico :: IO (S.HashSet Entry)
 getDicNico = do
   let path = "cache/jp-nicovideo-dic"
@@ -132,11 +133,11 @@ getDicNico = do
     return dic
 
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
--- のような記事からページャを辿って再帰的にデータを取得する
+-- のような記事からページャを辿って再帰的にデータを取得します。
 getDicNicoTitle :: Char -> IO (S.HashSet Entry)
 getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toString (urlEncode False (toByteStringStrict [c]))
 
--- | ページャを辿っていくのでURLから取得したほうが都合が良いので別関数化して再帰する
+-- | ページャを順番に辿っていく方が実装が楽で、サーバとの通信速度を考えても、過度に並列化しても意味がないので別関数で取得します。
 getDicNicoPage :: String -> IO (S.HashSet Entry)
 getDicNicoPage href = do
   response <- do
@@ -144,8 +145,8 @@ getDicNicoPage href = do
     if getResponseStatus response0 == status200
       then return response0
       else do
-      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので失敗した場合もう一度だけリトライする
-      -- 1秒スリープ
+      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので、失敗した場合もう一度だけリトライします
+      -- 一時的に壊れているだけの可能性があるので1秒スリープをかけます
       threadDelay $ 1000 * 1000
       response1 <- httpLBS (fromString href)
       unless (getResponseStatus response1 == status200) $
@@ -180,9 +181,9 @@ getDicNicoPage href = do
   return $ dic <> fromMaybe S.empty nextDic
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
--- による読みが異なる単語の一覧
--- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません
--- 実は取得が雑で"概要"とかも入ってしまっていますが別に除外されて問題ないので放置しています
+-- による読みが異なる単語の一覧を取得します。
+-- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません。
+-- 実は取得が雑で"概要"とかも入ってしまっていますが、最終的に除外されるので実害がないので放置しています。
 getDicNicoSpecialYomi :: IO (S.HashSet T.Text)
 getDicNicoSpecialYomi = do
   let path = "cache/jp-nicovideo-dic-id-4652210"
@@ -200,8 +201,8 @@ getDicNicoSpecialYomi = do
     B.writeFile path $ encode dic
     return dic
 
--- | Pixiv百科時点のサイトマップから記事一覧データを取得します
--- toFuzzyによって曖昧になっています
+-- | Pixiv百科時点のサイトマップから記事一覧データを取得します。
+-- toFuzzyによって量子化が行われています。
 getDicPixiv :: IO (S.HashSet T.Text)
 getDicPixiv = do
   let path = "cache/net-pixiv-dic"
@@ -219,11 +220,11 @@ getDicPixiv = do
     B.writeFile path $ encode dic
     return dic
 
--- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化する
+-- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化します。
 normalizeWord :: T.Text -> T.Text
 normalizeWord = replaceEllipsis . normalize NFKC
 
--- | 中黒などで三点リーダを表現しようとしているのを変換
+-- | 中黒などで三点リーダを表現しようとしているのを正規の三点リーダに変換します。
 replaceEllipsis :: T.Text -> T.Text
 replaceEllipsis word =
   let pseudoEllipsisList
@@ -234,12 +235,12 @@ replaceEllipsis word =
           ]
   in foldr (`T.replace` "…") word pseudoEllipsisList
 
--- | 単語を曖昧比較します
--- toFuzzyに加え編集距離を考慮します
+-- | 単語を曖昧比較します。
+-- toFuzzyに加え編集距離を考慮します。
 fuzzyEqual :: T.Text -> T.Text -> Bool
 fuzzyEqual x y = levenshtein (toFuzzy x) (toFuzzy y) <= 2
 
--- | 単語を大雑把に量子化します
+-- | 単語を大雑把に量子化します。
 toFuzzy :: T.Text -> T.Text
 toFuzzy w =
   let dropNotLetter = T.filter (\c -> isLetter c || isDigit c) w
@@ -254,23 +255,23 @@ toFuzzy w =
       useWord = if useDropNotLetter then dropNotLetter else w
   in T.toCaseFold $ katakanaToHiragana useWord
 
--- | カタカナをひらがなに変換
--- 長音記号を変換しない
--- icuで変換
--- 長音記号が変換されてしまうのでカタカナには使われない文字を使って誤魔化す
+-- | カタカナをひらがなに変換します。
+-- 長音記号を文字に変換しません。
+-- icuで変換します。
+-- 普通に呼び出すと長音記号が変換されてしまうので、カタカナには使われない文字を使って誤魔化しています。
 katakanaToHiragana :: T.Text -> T.Text
 katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
 
--- | `Char`がひらがなである
--- Unicodeの平仮名ブロックとは一致せず、読みを持つものだけである
+-- | `Char`がひらがなであることを判定します。
+-- Unicodeの平仮名ブロックとは一致せず、読みを持つものだけに限定しています。
 isReadableHiragana :: Char -> Bool
 isReadableHiragana c =
   let o = ord c
   in 0x3041 <= o && o <= 0x3096
 
--- | `Char`がカタカナである
--- ICUのblockCodeは純粋関数なのに例外を出すので自前実装しています
--- Unicodeの片仮名ブロックとは一致せず、読みを持つものだけである
+-- | `Char`がカタカナであることを判定します。
+-- ICUのblockCodeは純粋関数なのに例外を出すので自前実装しています。
+-- Unicodeの片仮名ブロックとは一致せず、読みを持つものだけに限定しています。
 isReadebleKatakana :: Char -> Bool
 isReadebleKatakana c =
   let o = ord c
@@ -280,7 +281,7 @@ isReadebleKatakana c =
 isReadebleHiraganaOrKatakana :: Char -> Bool
 isReadebleHiraganaOrKatakana c = isReadableHiragana c || isReadebleKatakana c
 
--- | ひらがなの捨て仮名を普通のかなにする
+-- | ひらがなの捨て仮名を普通のかなにします。
 toUpHiragana :: T.Text -> T.Text
 toUpHiragana word =
   let lower = "ぁぃぅぇぉっゃゅょゎゕゖ"
@@ -288,7 +289,7 @@ toUpHiragana word =
       lowerUpper = M.fromList $ zip lower upper
   in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) word
 
--- | 読みが明瞭に分かるひらがなである
+-- | 読みが明瞭に分かるひらがなであることを判定します。
 isClearHiragana :: Char -> Bool
 isClearHiragana c
   | c `elem`
@@ -296,30 +297,31 @@ isClearHiragana c
      <> "ほはへ" -- 現代仮名遣いの欠点で変則的な読みをすることがある ほ→おなど
      <> "ゔ"-- 外来語に多いので無理
      <> "ゑを" -- 現代仮名遣いへの以降が中途半端になったので曖昧性が高い
-     <> "ゝゞゟ" -- 踊り字は頑張ればコンテキスト由来で解析出来るかもしれませんが難しいし許容する分にはさほど困らない
+     <> "ゝゞゟ" -- 踊り字は頑張ればコンテキスト由来で解析出来るかもしれませんが、難しいし、許容する分にはさほど困らないので放置
     ) = False
   | otherwise = isReadableHiragana c
 
--- | 読みが明瞭に分かるカタカナである
+-- | 読みが明瞭に分かるカタカナであることを判定します。
 isClearKatakana :: Char -> Bool
-isClearKatakana 'ケ' = False -- 阿佐ケ谷駅とかが判別不可能なので
+isClearKatakana 'ケ' = False -- 阿佐ケ谷駅とかが判別不可能なので無理
 isClearKatakana c   = isReadebleKatakana c
 
--- | 読みが明瞭にわかる平仮名に変換する
+-- | 読みが明瞭にわかる平仮名に変換することを判定します。
 toClearHiragana :: Char -> Char
 toClearHiragana 'ヶ' = 'が'
 toClearHiragana c
-  | isClearKatakana c = T.head $ katakanaToHiragana $ T.singleton c -- katakanaToHiraganaのためにTextに変換して戻すのすごい無駄
+  -- katakanaToHiraganaのためにTextに変換して戻すのすごい無駄ですが、他に良い方法が思いつきませんでした
+  | isClearKatakana c = T.head $ katakanaToHiragana $ T.singleton c
   | otherwise = c
 
--- | 単語をある程度正確に推定出来る範囲で読み(ひらがな)に変換します
--- 今の所カタカナ → ひらがなのみ
+-- | 単語をある程度正確に推定出来る範囲で読み(ひらがな)に変換します。
+-- 今の所カタカナ → ひらがなのみの返還です。
 toYomiEffortGroup :: T.Text -> [T.Text]
 toYomiEffortGroup w = if " ゙" `T.isInfixOf` w -- アネ゙デパミ゙みたいなのを解析するのは不可能でした
   then []
   else filter (/= "") $ T.split (not . isClearHiragana) $ T.map toClearHiragana w
 
--- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しない
+-- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しません。
 dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
 dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   -- Pixiv百科時点にも存在する単語のみを使う
@@ -436,23 +438,22 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   where yomiLength = T.length entryYomi
         wordLength = T.length entryWord
 
--- | 読みがなをキーとした単語のマップを作ります
+-- | 読みがなをキーとした単語のマップを作ります。
 mkDicNicoYomiMap :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
 mkDicNicoYomiMap dictionaryFiltered =
   M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord} <- dictionaryFiltered]
 
--- | 読みがなをキーとした非リダイレクトの単語のマップを作ります
+-- | 読みがなをキーとした非リダイレクトの単語のマップを作ります。
 mkDicNicoYomiMapNotRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
 mkDicNicoYomiMapNotRedirect dictionaryFiltered =
   M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
 
--- | ドラゴンクエストビルダーズ2
--- のようなシリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数
--- Splatoon 2
--- のような間にスペースが入っている単語を除外していないのは意図があり、
--- Windows 10がWindowsのシリーズ扱いで除外されてしまう割にあまり除外できる単語がないため
+-- | `ドラゴンクエストビルダーズ2` のような、シリーズ元の単語がある単純な続編タイトルを抽出して除外するための関数です。
+-- `Splatoon 2` のような間にスペースが入っている単語を除外していないのは諦めています。
+-- `Windows 10` がWindowsのシリーズ扱いで除外されてしまう割に、あまり除外できる単語がないためです。
+-- そもそも除外しなくても良いぐらいのノイズ数です。
 notSeries :: S.HashSet T.Text -> Entry -> Bool
 notSeries dicWord Entry{entryWord} =
   -- 長い数字は入力するの面倒なので除外しないようにする
@@ -463,8 +464,7 @@ notSeries dicWord Entry{entryWord} =
       -- 整数なら3文字なら除外されないはず
       length (show r) <= 4
 
--- | identityv
--- のような正式名称を小文字に潰してスペースを消してリンクを繋ぎやすくした単語を除外するための関数
+-- | `identityv` のような正式名称を小文字に潰して、スペースを消して、リンクを繋ぎやすくした単語を除外するための関数です。
 notLinkFriendly :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
 notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- 同じ読みの記事セット、自分自身は除く
@@ -478,15 +478,16 @@ notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- 空白を除いて小文字化したら同じ記事名に同じ読みになる単語が存在すればリンクのための記事だとわかる
      (notElem entryWord equalYomiEntryWordThinSet && notElem entryWord equalYomiEntryWordThinAndLeterSet)
 
--- | 誤変換指摘対策
--- リダイレクト記事であり
--- 元の記事の読みと同一であるか単語が曖昧的に一致するリダイレクト記事ではない記事が存在する場合
--- 誤変換の指摘であることが多いため除外します
--- ニコニコ大百科のページ一覧からはリダイレクトであることは読み取れますがリダイレクト先の記事が何かが分からないので
--- 単純に読みだけを見ると
--- 妖夢 → ヨウムが誤変換指摘と認識されてしまいます
--- しかし全てのリダイレクト記事を許可してしまうと表記揺れで単語数が膨らんでしまうので
--- ファジーマッチによってリダイレクト先を妥協予測します
+-- | 誤変換指摘記事対策です。
+-- リダイレクト記事であり、
+-- 元の記事の読みと同一であるか単語が曖昧的に一致するリダイレクト記事ではない記事が存在する場合、
+-- 誤変換の指摘であることが多いため除外します。
+-- ニコニコ大百科のページ一覧からはリダイレクトであることは読み取れますが、
+-- リダイレクト先の記事が何かが分からないので、
+-- 単純に読みだけを見ると、
+-- 妖夢 → ヨウムが誤変換指摘と認識されてしまいます。
+-- しかし全てのリダイレクト記事を許可してしまうと表記揺れで単語数が膨らんでしまうので、
+-- ファジーマッチによってリダイレクト先を妥協予測します。
 notMisconversion :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
 notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- リダイレクトではなければ無条件で問題ない
