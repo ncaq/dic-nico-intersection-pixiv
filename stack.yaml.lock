@@ -12,36 +12,15 @@ packages:
   original:
     hackage: dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
 - completed:
-    hackage: store-0.7.4@sha256:ad89cd2f525bccece875423147d8a1f35cdf7a1fef1eb32a1db896e61848b70a,7825
-    pantry-tree:
-      size: 1292
-      sha256: 1137f5d7e631636ff74cac4d223d6817cb229be99e5db4b555a988463a8ffa80
-  original:
-    hackage: store-0.7.4@sha256:ad89cd2f525bccece875423147d8a1f35cdf7a1fef1eb32a1db896e61848b70a,7825
-- completed:
-    hackage: store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
-    pantry-tree:
-      size: 271
-      sha256: 0db8705011f7f25d9e5f639c52ccce5fccb1de578de685def2b79e289d9de4cc
-  original:
-    hackage: store-core-0.4.4.2@sha256:11403cad88cf4f3675d49baf76cb5dd56363e786c7e25ef00fa57296af29a7b2,1444
-- completed:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
     pantry-tree:
       size: 542
       sha256: 74233c36098c69ffdeac6fdf578ddf77c6308f6dda900b8c038a3b652768f253
   original:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
-- completed:
-    hackage: th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
-    pantry-tree:
-      size: 882
-      sha256: 8c577d112a8398a5542aa4205b2e8a470a66d57590e6606d752d71e75d7425ea
-  original:
-    hackage: th-utilities-0.2.4.0@sha256:ba19cd8441aa43dbaed40e9055bb5a7cbd7cf9e154f5253c6bf9293af8b1f96b,1869
 snapshots:
 - completed:
-    size: 533252
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/27.yaml
-    sha256: c2aaae52beeacf6a5727c1010f50e89d03869abfab6d2c2658ade9da8ed50c73
-  original: lts-16.27
+    size: 567037
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/17/9.yaml
+    sha256: d7d8d5106e53d1669964bd8bd2b0f88a5ad192d772f5376384b76738fd992311
+  original: lts-17.9
