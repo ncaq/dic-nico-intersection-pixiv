@@ -9,21 +9,12 @@ github: ncaq/dic-nico-intersection-pixiv
 
 ghc-options:
   - -Wall
-  # - -Wall-missed-specialisations
+  - -Wcompat
   - -Widentities
-  # - -Wimplicit-prelude
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
-  # - -Wmissed-specialisations
-  # - -Wmissing-export-lists
-  - -Wmissing-exported-signatures
-  - -Wmissing-home-modules
-  # - -Wmissing-import-lists
-  # - -Wmissing-local-signatures
-  # - -Wmonomorphism-restriction
-  # - -Wpartial-fields
+  - -Wpartial-fields
   - -Wredundant-constraints
-  - -Wcompat
   - -O2
   - -threaded
   - -rtsopts
