@@ -16,9 +16,9 @@ import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
 import           Data.Char
 import           Data.Either                 (isLeft)
+import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
-import           Data.Hashable
 import qualified Data.List                   as L
 import qualified Data.Map.Strict             as OM
 import           Data.Maybe                  (fromJust, fromMaybe, mapMaybe)
