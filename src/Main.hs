@@ -340,11 +340,10 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   , all (`T.isInfixOf` toUpHiragana entryYomi) $ toYomiEffortGroup entryWord
     -- 単語が全てひらがなかカタカナ(特定の記号で区切ってある場合も含む)である場合
     -- 記号を除いて全文一致することを求めます
-  , not (isReadebleHiraganaOrKatakana (T.head entryWord)
-         && T.all (\c -> c `notElem` ("ゑをヱヲ" :: String)
-                    && isReadebleHiraganaOrKatakana c || c `elem` ("・= ー" :: String)) entryWord)
-    || (T.filter isClearHiragana . katakanaToHiragana) entryWord
-    == T.filter isClearHiragana entryYomi
+  , not (T.all isReadebleHiraganaOrKatakana entryWord &&
+         T.all (\c -> c `notElem` ("ゑをヱヲ" :: String) && isReadebleHiraganaOrKatakana c ||
+                 c `elem` ("・= ー" :: String)) entryWord) ||
+    (T.filter isClearHiragana . katakanaToHiragana) entryWord == T.filter isClearHiragana entryYomi
     -- マジで? いま! など読みが4文字以下で単語が感嘆符で終わるやつは除外
     -- 変換で誤爆危険性が高いのと感嘆符をつけ足すだけなので変換する意味がない
     -- サジェストの役に立つかもしれないので5文字異常は許可します
