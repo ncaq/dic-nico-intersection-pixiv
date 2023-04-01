@@ -180,11 +180,7 @@ getDicNicoSpecialYomi = do
     then B.readFile path >>= decodeIO
     else do
     Just liTexts <- scrapeURL "https://dic.nicovideo.jp/id/4652210" (texts $ "div" @: [hasClass "article"] // "ul" // "li")
-    let dic =
-          S.fromList $
-          map (normalizeWord . T.takeWhile (\x -> x `L.notElem` ['(', '（'])) $
-          filter (\x -> ")" `T.isSuffixOf` x || "）" `T.isSuffixOf` x)
-          liTexts
+    let dic = S.fromList $ normalizeWord . T.takeWhile (/= '（') <$> liTexts
     B.writeFile path $ encode dic
     return dic
 
