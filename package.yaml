@@ -28,6 +28,7 @@ dependencies:
   - attoparsec
   - bytestring
   - containers
+  - convertible
   - directory
   - hashable
   - http-conduit
@@ -35,7 +36,6 @@ dependencies:
   - parallel
   - scalpel
   - store
-  - string-transform
   - text
   - text-icu-translit
   - text-metrics

@@ -9,7 +9,9 @@ import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
+import qualified Data.ByteString.Char8       as C
 import           Data.Char
+import           Data.Convertible
 import           Data.Either                 (isLeft)
 import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
@@ -18,7 +20,6 @@ import qualified Data.List                   as L
 import           Data.Maybe
 import           Data.Store
 import           Data.String
-import           Data.String.Transform
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
@@ -101,7 +102,7 @@ getDicInfo = do
     [ "# name: dic-nico-intersection-pixiv"
     , "# description: ニコニコ大百科とピクシブ百科事典の共通部分の辞書"
     , "# github: https://github.com/ncaq/dic-nico-intersection-pixiv"
-    , "# createdAt: " <> toTextStrict time
+    , "# createdAt: " <> convert time
     , "# copying:"
     , "# nicovideo: https://dic.nicovideo.jp/"
     , "# pixiv: https://dic.pixiv.net/"
@@ -128,24 +129,24 @@ getDicNico = do
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
 -- のような記事からページャを辿って再帰的にデータを取得します。
 getDicNicoTitle :: Char -> IO (S.HashSet Entry)
-getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toString (urlEncode False (toByteStringStrict [c]))
+getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> convert (urlEncode False (C.singleton c))
 
 -- | ページャを順番に辿っていく方が実装が楽で、サーバとの通信速度を考えても、過度に並列化しても意味がないので別関数で取得します。
-getDicNicoPage :: String -> IO (S.HashSet Entry)
+getDicNicoPage :: Text -> IO (S.HashSet Entry)
 getDicNicoPage href = do
   response <- do
-    response0 <- httpBS (fromString href)
+    response0 <- httpBS $ fromString $ convert href
     if getResponseStatus response0 == status200
       then return response0
       else do
       -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので、失敗した場合もう一度だけリトライします
       -- 一時的に壊れているだけの可能性があるので1秒スリープをかけます
       threadDelay $ 1000 * 1000
-      response1 <- httpBS (fromString href)
+      response1 <- httpBS $ fromString $ convert href
       unless (getResponseStatus response1 == status200) $
-        error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response1
+        error $ "ニコニコ大百科 " <> convert href <> " が取得できませんでした: " <> show response1
       return response1
-  let doc = toTextStrict $ getResponseBody response
+  let doc = convert $ getResponseBody response
       articles = join $ maybeToList $ scrapeStringLike doc (htmls $ "div" @: [hasClass "article"] // "ul" // "ul" // "li")
       ts = (\article -> T.strip <$> scrapeStringLike article (text anySelector)) `mapMaybe` articles
       ws = (\article -> T.strip <$> scrapeStringLike article (text "a")) `mapMaybe` articles
@@ -153,18 +154,18 @@ getDicNicoPage href = do
       dic = S.fromList $ zipWith
             (\w extra ->
                let yomi = T.takeWhile (/= ')') $ fromJust $ T.stripPrefix "(" extra
-                   hiraganaYomi = katakanaToHiragana $ toTextStrict yomi
+                   hiraganaYomi = katakanaToHiragana yomi
                in Entry
-                  { entryWord = normalizeWord $ toTextStrict w
+                  { entryWord = normalizeWord w
                   , entryYomi = normalizeWord hiraganaYomi
                   , entryRedirect = "(リダイレクト)" `T.isInfixOf` extra
                   }) ws extras
       naviHrefs = join $ maybeToList $ scrapeStringLike doc (htmls ("a" @: [hasClass "navi"]))
       mNextHref = listToMaybe $ mapMaybe (\x -> scrapeStringLike x (attr "href" "a")) $
         filter (\x -> scrapeStringLike x (text anySelector) == Just "次へ »") naviHrefs
-  when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
+  when (S.null dic) $ error $ "ニコニコ大百科 " <> convert href <> " で単語が取得できませんでした: " <> show dic
   nextDic <- case mNextHref of
-    Just nextHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString nextHref)
+    Just nextHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> nextHref)
     _ -> return Nothing
   return $ dic <> fromMaybe S.empty nextDic
 
@@ -196,7 +197,7 @@ getDicPixiv = do
     Just sitemaps <- scrapeURL "https://dic.pixiv.net/sitemap.xml" (texts "loc")
     pageURLs <- join . catMaybes <$> (\sitemap -> scrapeURL sitemap (texts "loc")) `mapM` sitemaps
     let dic = S.fromList $
-          map (toFuzzy . normalizeWord . toTextStrict . urlDecode True . toByteStringStrict) $
+          map (toFuzzy . normalizeWord . convert . urlDecode True . convert) $
           mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") pageURLs
     B.writeFile path $ encode dic
     return dic
