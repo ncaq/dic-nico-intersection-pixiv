@@ -29,12 +29,11 @@ dependencies:
   - bytestring
   - containers
   - directory
-  - dom-selector
   - hashable
-  - html-conduit
   - http-conduit
   - http-types
   - parallel
+  - scalpel
   - store
   - string-transform
   - text

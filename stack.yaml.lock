@@ -5,13 +5,6 @@
 
 packages:
 - completed:
-    hackage: dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
-    pantry-tree:
-      sha256: 1f2afab3a4665d8640deba846c2fc392ade2d8370e6ffa470fa268929945ab6c
-      size: 600
-  original:
-    hackage: dom-selector-0.2.0.1@sha256:89f5dc75d762b01b9b09a42cc84ae8145efb3a2c5ba4f0d5605d928812606a5f,2693
-- completed:
     hackage: text-icu-translit-0.1.0.7@sha256:c8eaaee3331417a250365474067b7cb0f196ebabd04b3fe834c4e2b5a212b5ce,1723
     pantry-tree:
       sha256: 74233c36098c69ffdeac6fdf578ddf77c6308f6dda900b8c038a3b652768f253

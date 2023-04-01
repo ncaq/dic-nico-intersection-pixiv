@@ -1,10 +1,5 @@
-{-# LANGUAGE DeriveAnyClass    #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QuasiQuotes       #-}
 module Main (main) where
 
 import           Control.Applicative
@@ -20,15 +15,14 @@ import           Data.Hashable
 import qualified Data.HashMap.Strict         as M
 import qualified Data.HashSet                as S
 import qualified Data.List                   as L
-import qualified Data.Map.Strict             as OM
-import           Data.Maybe                  (fromJust, fromMaybe, mapMaybe)
+import           Data.Maybe
 import           Data.Store
 import           Data.String
 import           Data.String.Transform
+import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Data.Text.ICU.Translit
 import qualified Data.Text.IO                as T
-import qualified Data.Text.Lazy              as TL
 import           Data.Text.Metrics
 import           Data.Text.Normalize
 import           Data.Time.Format
@@ -37,20 +31,19 @@ import           GHC.Generics                (Generic)
 import           Network.HTTP.Simple
 import           Network.HTTP.Types
 import           System.Directory
-import           Text.HTML.DOM
-import           Text.XML                    hiding (parseLBS)
-import           Text.XML.Cursor
-import           Text.XML.Scraping
-import           Text.XML.Selector.TH
+import           Text.HTML.Scalpel
 
 -- | 記事エントリーを表すデータ構造。
 -- 名前が短すぎますが、これはライブラリじゃなくてアプリケーションなので、一般名刺的な名前を付けても構わないと判断しました。
 data Entry
   = Entry
-  { entryYomi     :: !T.Text -- ^ 読み、ひらがなに限定。
-  , entryWord     :: !T.Text -- ^ 単語、オリジナルのものがそのまま入ります。
+  { entryYomi     :: !Text -- ^ 読み、ひらがなに限定。
+  , entryWord     :: !Text -- ^ 単語、オリジナルのものがそのまま入ります。
   , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
-  } deriving (Eq, Ord, Read, Show, Generic, Hashable, Store)
+  }
+  deriving (Eq, Ord, Read, Show, Generic)
+instance Hashable Entry
+instance Store Entry
 
 -- | 辞書を得て、標準出力にプリントアウトします。
 main :: IO ()
@@ -68,7 +61,7 @@ main = do
   T.putStr $ T.unlines $ toMozcLine <$> dictionary
 
 -- | エントリー1つをMozcの辞書データ1行に変換します。
-toMozcLine :: Entry -> T.Text
+toMozcLine :: Entry -> Text
 toMozcLine Entry{entryYomi, entryWord} = T.intercalate "\t" [entryYomi, entryWord, kind, "nico-pixiv"]
   where kind | T.all isAscii entryWord = "アルファベット"
              | otherwise = "固有名詞"
@@ -101,7 +94,7 @@ getDictionary = do
   return dictionarySorted
 
 -- | 生成日を含めたこのデータの情報を表示します。
-getDicInfo :: IO T.Text
+getDicInfo :: IO Text
 getDicInfo = do
   time <- formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S%z" <$> getZonedTime
   return $ T.unlines
@@ -123,9 +116,11 @@ getDicNico = do
   if exist
     then B.readFile path >>= decodeIO
     else do
-    doc <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.nicovideo.jp/m/a/a"
-    let chars = map TL.head $ filter (\text -> TL.length text == 1) $ map innerText $
-          queryT [jq|.st-box_contents > table > tr > td > a|] doc
+    Just doc <-
+      scrapeURL
+      "https://dic.nicovideo.jp/m/a/a"
+      (texts $ "div" @: [hasClass "st-box_contents"] // "table" // "tr" // "td" // "a")
+    let chars = map T.head $ filter (\t -> T.length t == 1) doc
     dic <- mconcat <$> mapConcurrently getDicNicoTitle chars
     B.writeFile path $ encode dic
     return dic
@@ -139,113 +134,105 @@ getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> toStr
 getDicNicoPage :: String -> IO (S.HashSet Entry)
 getDicNicoPage href = do
   response <- do
-    response0 <- httpLBS (fromString href)
+    response0 <- httpBS (fromString href)
     if getResponseStatus response0 == status200
       then return response0
       else do
       -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので、失敗した場合もう一度だけリトライします
       -- 一時的に壊れているだけの可能性があるので1秒スリープをかけます
       threadDelay $ 1000 * 1000
-      response1 <- httpLBS (fromString href)
+      response1 <- httpBS (fromString href)
       unless (getResponseStatus response1 == status200) $
         error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response1
       return response1
-  let doc = fromDocument $ parseLBS $ getResponseBody response
-      articles = queryT [jq|.article ul ul li|] doc
-      ts = map (TL.strip . innerText) articles
-      ws = map (TL.strip . innerText . queryT [jq|a|]) articles
-      extras = zipWith (\word text -> fromJust $ TL.strip <$> TL.stripPrefix word text) ws ts
+  let doc = toTextStrict $ getResponseBody response
+      articles = join $ maybeToList $ scrapeStringLike doc (htmls $ "div" @: [hasClass "article"] // "ul" // "ul" // "li")
+      ts = (\article -> T.strip <$> scrapeStringLike article (text anySelector)) `mapMaybe` articles
+      ws = (\article -> T.strip <$> scrapeStringLike article (text "a")) `mapMaybe` articles
+      extras = zipWith (\w t -> T.strip (fromJust (T.stripPrefix w t))) ws ts
       dic = S.fromList $ zipWith
-            (\word extra ->
-               let yomi = TL.takeWhile (/= ')') $ fromJust $ TL.stripPrefix "(" extra
+            (\w extra ->
+               let yomi = T.takeWhile (/= ')') $ fromJust $ T.stripPrefix "(" extra
                    hiraganaYomi = katakanaToHiragana $ toTextStrict yomi
                in Entry
-                  { entryWord = normalizeWord $ toTextStrict word
+                  { entryWord = normalizeWord $ toTextStrict w
                   , entryYomi = normalizeWord hiraganaYomi
-                  , entryRedirect = "(リダイレクト)" `TL.isInfixOf` extra
+                  , entryRedirect = "(リダイレクト)" `T.isInfixOf` extra
                   }) ws extras
-      navis = node <$> queryT [jq|div.st-pg div.st-pg_contents a.navi|] doc
+      naviHrefs = join $ maybeToList $ scrapeStringLike doc (htmls ("a" @: [hasClass "navi"]))
+      mNextHref = listToMaybe $ mapMaybe (\x -> scrapeStringLike x (attr "href" "a")) $
+        filter (\x -> scrapeStringLike x (text anySelector) == Just "次へ »") naviHrefs
   when (S.null dic) $ error $ "ニコニコ大百科 " <> href <> " で単語が取得できませんでした: " <> show dic
-  nextDic <-
-        case L.find (\case
-                      NodeElement Element{elementNodes} -> elementNodes == [NodeContent "次へ »"]
-                      _ -> False
-                  ) navis of
-          Just (NodeElement (Element _ attrs _)) ->
-            case OM.lookup "href" attrs of
-              Nothing -> return Nothing
-              Just newHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString newHref)
-          _ -> return Nothing
+  nextDic <- case mNextHref of
+    Just nextHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> toString nextHref)
+    _ -> return Nothing
   return $ dic <> fromMaybe S.empty nextDic
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧を取得します。
 -- 括弧を含む単語をうまく扱えないですがどうせ括弧入りの単語は除外するから考慮しません。
 -- 実は取得が雑で"概要"とかも入ってしまっていますが、最終的に除外されるので実害がないので放置しています。
-getDicNicoSpecialYomi :: IO (S.HashSet T.Text)
+getDicNicoSpecialYomi :: IO (S.HashSet Text)
 getDicNicoSpecialYomi = do
   let path = "cache/jp-nicovideo-dic-id-4652210"
   exist <- doesFileExist path
   if exist
     then B.readFile path >>= decodeIO
     else do
-    let href = "https://dic.nicovideo.jp/id/4652210"
-    response <- httpLBS $ fromString href
-    when (getResponseStatus response /= status200) $
-      error $ "ニコニコ大百科 " <> href <> " が取得できませんでした: " <> show response
-    let doc = fromDocument $ parseLBS $ getResponseBody response
-        dic = S.fromList $ normalizeWord . T.takeWhile (/= '（') . toTextStrict . innerText <$>
-              queryT [jq|#article ul li|] doc
+    Just liTexts <- scrapeURL "https://dic.nicovideo.jp/id/4652210" (texts $ "div" @: [hasClass "article"] // "ul" // "li")
+    let dic =
+          S.fromList $
+          map (normalizeWord . T.takeWhile (\x -> x `L.notElem` ['(', '（'])) $
+          filter (\x -> ")" `T.isSuffixOf` x || "）" `T.isSuffixOf` x)
+          liTexts
     B.writeFile path $ encode dic
     return dic
 
 -- | Pixiv百科時点のサイトマップから記事一覧データを取得します。
 -- toFuzzyによって量子化が行われています。
-getDicPixiv :: IO (S.HashSet T.Text)
+getDicPixiv :: IO (S.HashSet Text)
 getDicPixiv = do
   let path = "cache/net-pixiv-dic"
   exist <- doesFileExist path
   if exist
     then B.readFile path >>= decodeIO
     else do
-    sitemap <- fromDocument . parseLBS . getResponseBody <$> httpLBS "https://dic.pixiv.net/sitemap.xml"
-    sitemaps <- mapM (\loc -> fromDocument . parseLBS . getResponseBody <$> httpLBS (parseRequest_ (toString (innerText loc)))) $
-      queryT [jq|loc|] sitemap
+    Just sitemaps <- scrapeURL "https://dic.pixiv.net/sitemap.xml" (texts "loc")
+    pageURLs <- join . catMaybes <$> (\sitemap -> scrapeURL sitemap (texts "loc")) `mapM` sitemaps
     let dic = S.fromList $
           map (toFuzzy . normalizeWord . toTextStrict . urlDecode True . toByteStringStrict) $
-          mapMaybe (TL.stripPrefix "https://dic.pixiv.net/a/") $
-          concatMap (map innerText . queryT [jq|loc|]) sitemaps
+          mapMaybe (T.stripPrefix "https://dic.pixiv.net/a/") pageURLs
     B.writeFile path $ encode dic
     return dic
 
 -- | 一致しているかで判定を行う箇所が多数存在するのでなるべく正規化します。
-normalizeWord :: T.Text -> T.Text
+normalizeWord :: Text -> Text
 normalizeWord = replaceEllipsis . normalize NFKC
 
 -- | 中黒などで三点リーダを表現しようとしているのを正規の三点リーダに変換します。
-replaceEllipsis :: T.Text -> T.Text
-replaceEllipsis word =
+replaceEllipsis :: Text -> Text
+replaceEllipsis w =
   let pseudoEllipsisList
         = [ "···"
           , "・・・"
           , "..."
           , "．．．"
           ]
-  in foldr (`T.replace` "…") word pseudoEllipsisList
+  in foldr (`T.replace` "…") w pseudoEllipsisList
 
 -- | 単語を曖昧比較します。
 -- toFuzzyに加え編集距離を考慮します。
-fuzzyEqual :: T.Text -> T.Text -> Bool
+fuzzyEqual :: Text -> Text -> Bool
 fuzzyEqual x y = levenshtein (toFuzzy x) (toFuzzy y) <= 2
 
 -- | 単語を大雑把に量子化します。
-toFuzzy :: T.Text -> T.Text
+toFuzzy :: Text -> Text
 toFuzzy w =
   let dropNotLetter = T.filter (\c -> isLetter c || isDigit c) w
       -- 単語から記号を消去するか?
       useDropNotLetter =
         -- 記号が大半を占める単語は記号を除かない
-        not (T.length w /= 0 && (fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w)) < (0.7 :: Double)) &&
+        not (T.length w /= 0 && fromIntegral (T.length dropNotLetter) / fromIntegral (T.length w) < (0.7 :: Double)) &&
         -- 消去した記号がプレフィクスだけの場合は無効
         not (dropNotLetter `T.isSuffixOf` w) &&
         -- 消去した記号がサフィックスだけの場合は無効
@@ -257,7 +244,7 @@ toFuzzy w =
 -- 長音記号を文字に変換しません。
 -- icuで変換します。
 -- 普通に呼び出すと長音記号が変換されてしまうので、カタカナには使われない文字を使って誤魔化しています。
-katakanaToHiragana :: T.Text -> T.Text
+katakanaToHiragana :: Text -> Text
 katakanaToHiragana = T.replace "!" "ー" . transliterate (trans "Katakana-Hiragana") . T.replace "ー" "!"
 
 -- | `Char`がひらがなであることを判定します。
@@ -280,12 +267,12 @@ isReadebleHiraganaOrKatakana :: Char -> Bool
 isReadebleHiraganaOrKatakana c = isReadableHiragana c || isReadebleKatakana c
 
 -- | ひらがなの捨て仮名を普通のかなにします。
-toUpHiragana :: T.Text -> T.Text
-toUpHiragana word =
+toUpHiragana :: Text -> Text
+toUpHiragana w =
   let lower = "ぁぃぅぇぉっゃゅょゎゕゖ"
       upper = "あいうえおつやゆよわかけ"
       lowerUpper = M.fromList $ zip lower upper
-  in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) word
+  in T.map (\c -> fromMaybe c (M.lookup c lowerUpper)) w
 
 -- | 読みが明瞭に分かるひらがなであることを判定します。
 isClearHiragana :: Char -> Bool
@@ -314,13 +301,13 @@ toClearHiragana c
 
 -- | 単語をある程度正確に推定出来る範囲で読み(ひらがな)に変換します。
 -- 今の所カタカナ → ひらがなのみの返還です。
-toYomiEffortGroup :: T.Text -> [T.Text]
+toYomiEffortGroup :: Text -> [Text]
 toYomiEffortGroup w = if " ゙" `T.isInfixOf` w -- アネ゙デパミ゙みたいなのを解析するのは不可能でした
   then []
   else filter (/= "") $ T.split (not . isClearHiragana) $ T.map toClearHiragana w
 
 -- | 辞書に適している単語を抽出する(1段階目)、リダイレクト関係は考慮しません。
-dictionaryWord :: S.HashSet T.Text -> S.HashSet T.Text -> Entry -> Bool
+dictionaryWord :: S.HashSet Text -> S.HashSet Text -> Entry -> Bool
 dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
   -- Pixiv百科時点にも存在する単語のみを使う
   [ toFuzzy entryWord `S.member` dicPixiv
@@ -437,13 +424,13 @@ dictionaryWord dicNicoSpecialYomi dicPixiv Entry{entryYomi, entryWord} = and
         wordLength = T.length entryWord
 
 -- | 読みがなをキーとした単語のマップを作ります。
-mkDicNicoYomiMap :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
+mkDicNicoYomiMap :: [Entry] -> M.HashMap Text (S.HashSet Text)
 mkDicNicoYomiMap dictionaryFiltered =
   M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord} <- dictionaryFiltered]
 
 -- | 読みがなをキーとした非リダイレクトの単語のマップを作ります。
-mkDicNicoYomiMapNotRedirect :: [Entry] -> M.HashMap T.Text (S.HashSet T.Text)
+mkDicNicoYomiMapNotRedirect :: [Entry] -> M.HashMap Text (S.HashSet Text)
 mkDicNicoYomiMapNotRedirect dictionaryFiltered =
   M.fromListWith (<>)
   [(entryYomi, S.singleton entryWord) | Entry{entryYomi, entryWord, entryRedirect} <- dictionaryFiltered, not entryRedirect]
@@ -452,7 +439,7 @@ mkDicNicoYomiMapNotRedirect dictionaryFiltered =
 -- `Splatoon 2` のような間にスペースが入っている単語を除外していないのは諦めています。
 -- `Windows 10` がWindowsのシリーズ扱いで除外されてしまう割に、あまり除外できる単語がないためです。
 -- そもそも除外しなくても良いぐらいのノイズ数です。
-notSeries :: S.HashSet T.Text -> Entry -> Bool
+notSeries :: S.HashSet Text -> Entry -> Bool
 notSeries dicWord Entry{entryWord} =
   -- 長い数字は入力するの面倒なので除外しないようにする
   case parseOnly ((,) <$> P.takeWhile (not . isDigit) <*> (rational :: Parser Double) <* endOfInput) entryWord of
@@ -463,7 +450,7 @@ notSeries dicWord Entry{entryWord} =
       length (show r) <= 4
 
 -- | `identityv` のような正式名称を小文字に潰して、スペースを消して、リンクを繋ぎやすくした単語を除外するための関数です。
-notLinkFriendly :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
+notLinkFriendly :: M.HashMap Text (S.HashSet Text) -> Entry -> Bool
 notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- 同じ読みの記事セット、自分自身は除く
   let equalYomiEntrySet = S.filter (/= entryWord) $ fromMaybe S.empty $ M.lookup entryYomi dicNicoYomiMap
@@ -474,7 +461,7 @@ notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- リンクのための記事はリダイレクトになっているのでリダイレクトで無ければリンクのための記事と判断しなくて良い
   in not entryRedirect ||
   -- 空白を除いて小文字化したら同じ記事名に同じ読みになる単語が存在すればリンクのための記事だとわかる
-     (notElem entryWord equalYomiEntryWordThinSet && notElem entryWord equalYomiEntryWordThinAndLeterSet)
+     notElem entryWord equalYomiEntryWordThinSet && notElem entryWord equalYomiEntryWordThinAndLeterSet
 
 -- | 誤変換指摘記事対策です。
 -- リダイレクト記事であり、
@@ -486,11 +473,11 @@ notLinkFriendly dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
 -- 妖夢 → ヨウムが誤変換指摘と認識されてしまいます。
 -- しかし全てのリダイレクト記事を許可してしまうと表記揺れで単語数が膨らんでしまうので、
 -- ファジーマッチによってリダイレクト先を妥協予測します。
-notMisconversion :: M.HashMap T.Text (S.HashSet T.Text) -> Entry -> Bool
+notMisconversion :: M.HashMap Text (S.HashSet Text) -> Entry -> Bool
 notMisconversion dicNicoYomiMap Entry{entryYomi, entryWord, entryRedirect} =
   -- リダイレクトではなければ無条件で問題ない
   not entryRedirect
   -- ひらがなのみの場合漢字を溶かしたものである可能性が高いので除外
-  || (not (T.all isReadableHiragana entryWord)
+  || not (T.all isReadableHiragana entryWord)
      -- ファジーマッチでリダイレクト先っぽい記事を探索してあったらリダイレクトがあるとする
-      && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap))
+      && Just False /= (S.null . S.filter (entryWord `fuzzyEqual`) <$> M.lookup entryYomi dicNicoYomiMap)
