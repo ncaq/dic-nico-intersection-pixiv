@@ -9,7 +9,6 @@ import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
-import qualified Data.ByteString.Char8       as C
 import           Data.Char
 import           Data.Convertible
 import           Data.Either                 (isLeft)
@@ -129,7 +128,7 @@ getDicNico = do
 -- | [「ア」から始まる50音順単語記事タイトル表示 - ニコニコ大百科](https://dic.nicovideo.jp/m/yp/a/%E3%82%A2)
 -- のような記事からページャを辿って再帰的にデータを取得します。
 getDicNicoTitle :: Char -> IO (S.HashSet Entry)
-getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> convert (urlEncode False (C.singleton c))
+getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> T.singleton c
 
 -- | ページャを順番に辿っていく方が実装が楽で、サーバとの通信速度を考えても、過度に並列化しても意味がないので別関数で取得します。
 getDicNicoPage :: Text -> IO (S.HashSet Entry)
