@@ -3,10 +3,11 @@
 module Main (main) where
 
 import           Control.Applicative
-import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Monad
+import           Control.Monad.IO.Class
 import           Control.Parallel.Strategies
+import           Control.Retry
 import           Data.Attoparsec.Text        as P
 import qualified Data.ByteString             as B
 import           Data.Char
@@ -132,19 +133,15 @@ getDicNicoTitle c = getDicNicoPage $ "https://dic.nicovideo.jp/m/yp/a/" <> T.sin
 
 -- | ページャを順番に辿っていく方が実装が楽で、サーバとの通信速度を考えても、過度に並列化しても意味がないので別関数で取得します。
 getDicNicoPage :: Text -> IO (S.HashSet Entry)
-getDicNicoPage href = do
+getDicNicoPage href = recoverAll backoffLimitRetryPolicy $ \_ -> do
   response <- do
-    response0 <- httpBS $ fromString $ convert href
-    if getResponseStatus response0 == status200
-      then return response0
+    res <- httpBS $ fromString $ convert href
+    if getResponseStatus res == status200
+      then return res
       else do
-      -- ニコニコ大百科のサーバはしばしば壊れてランダムに通信に失敗するので、失敗した場合もう一度だけリトライします
-      -- 一時的に壊れているだけの可能性があるので1秒スリープをかけます
-      threadDelay $ 1000 * 1000
-      response1 <- httpBS $ fromString $ convert href
-      unless (getResponseStatus response1 == status200) $
-        error $ "ニコニコ大百科 " <> convert href <> " が取得できませんでした: " <> show response1
-      return response1
+      -- ニコニコ大百科のサーバはしばしば一時的に壊れてランダムに通信に失敗するので、
+      -- 失敗した場合リトライするために例外を投げます。
+      error $ "ニコニコ大百科 " <> convert href <> " が取得できませんでした: " <> show res
   let doc = convert $ getResponseBody response
       articles = join $ maybeToList $ scrapeStringLike doc (htmls $ "div" @: [hasClass "article"] // "ul" // "ul" // "li")
       ts = (\article -> T.strip <$> scrapeStringLike article (text anySelector)) `mapMaybe` articles
@@ -165,8 +162,13 @@ getDicNicoPage href = do
   when (S.null dic) $ error $ "ニコニコ大百科 " <> convert href <> " で単語が取得できませんでした: " <> show dic
   nextDic <- case mNextHref of
     Just nextHref -> Just <$> getDicNicoPage ("https://dic.nicovideo.jp" <> nextHref)
-    _ -> return Nothing
+    _             -> return Nothing
   return $ dic <> fromMaybe S.empty nextDic
+
+-- | ネットワーク通信に使うリトライ制限。
+-- 1/10秒からタイムアウトを乱数で増やして、10回までリトライします。
+backoffLimitRetryPolicy :: MonadIO m => RetryPolicyM m
+backoffLimitRetryPolicy = fullJitterBackoff (1 * 1000) <> limitRetries 10
 
 -- | [読みが通常の読み方とは異なる記事の一覧とは (ニコチュウジチョウシロとは) [単語記事] - ニコニコ大百科](https://dic.nicovideo.jp/id/4652210)
 -- による読みが異なる単語の一覧を取得します。
