@@ -143,7 +143,7 @@ steps:
       #   Useful for 'file' and 'group' align settings.
       #
       # Default: 4
-      list_padding: 4
+      list_padding: 2
 
       # Separate lists option affects formatting of import list for type
       # or class. The only difference is single space between type and list
@@ -234,7 +234,7 @@ indent: 2
 # Set this to null to disable all line wrapping.
 #
 # Default: 80.
-columns: 80
+columns: 120
 
 # By default, line endings are converted according to the OS. You can override
 # preferred format here.
