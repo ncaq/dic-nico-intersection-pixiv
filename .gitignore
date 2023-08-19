@@ -30,5 +30,3 @@ cabal.project.local~
 *.cabal
 
 cache/
-
-dic-nico-intersection-pixiv*.txt

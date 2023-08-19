@@ -55,11 +55,8 @@ main = do
   dicInfo <- getDicInfo
   dictionary <- getDictionary
 
-  -- 参考情報をプリント
-  T.putStrLn dicInfo
-
-  -- 辞書本体をプリント
-  T.putStr $ T.unlines $ toMozcLine <$> dictionary
+  -- Mozc/Google日本語入力形式の辞書データを保存します。
+  T.writeFile "public/dic-nico-intersection-pixiv-google.txt" $ T.unlines $ dicInfo : (toMozcLine <$> dictionary)
 
 -- | エントリー1つをMozcの辞書データ1行に変換します。
 toMozcLine :: Entry -> Text
