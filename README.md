@@ -4,7 +4,7 @@
 
 # ダウンロード
 
-<https://cdn.ncaq.net/dic-nico-intersection-pixiv.txt>
+[dic-nico-intersection-pixiv-google.txt](https://raw.githubusercontent.com/ncaq/dic-nico-intersection-pixiv/master/public/dic-nico-intersection-pixiv-google.txt)
 
 Google日本語入力およびMozc形式です。
 
