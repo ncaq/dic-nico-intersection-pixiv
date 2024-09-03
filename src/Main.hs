@@ -40,7 +40,7 @@ data Entry
   = Entry
   { entryYomi     :: !Text -- ^ 読み、ひらがなに限定。
   , entryWord     :: !Text -- ^ 単語、オリジナルのものがそのまま入ります。
-  , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
+  , entryRedirect :: !Bool -- ^ リダイレクト記事か?
   }
   deriving (Eq, Ord, Read, Show, Generic)
 instance Hashable Entry
