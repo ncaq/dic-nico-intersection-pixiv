@@ -35,12 +35,12 @@ import           System.Directory
 import           Text.HTML.Scalpel
 
 -- | 記事エントリーを表すデータ構造。
--- 名前が短すぎますが、これはライブラリじゃなくてアプリケーションなので、一般名刺的な名前を付けても構わないと判断しました。
+-- 名前が短すぎますが、これはライブラリじゃなくてアプリケーションなので、一般名詞的な名前を付けても構わないと判断しました。
 data Entry
   = Entry
   { entryYomi     :: !Text -- ^ 読み、ひらがなに限定。
   , entryWord     :: !Text -- ^ 単語、オリジナルのものがそのまま入ります。
-  , entryRedirect :: !Bool   -- ^ リダイレクト記事か?
+  , entryRedirect :: !Bool -- ^ リダイレクト記事か?
   }
   deriving (Eq, Ord, Read, Show, Generic)
 instance Hashable Entry
